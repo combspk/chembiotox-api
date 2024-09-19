@@ -1,0 +1,8 @@
+# Configuration file
+default:
+    # main database connection
+    db: 
+        host: 'host'
+        port: '5432'
+        user: 'user'
+        pass: 'pass'
