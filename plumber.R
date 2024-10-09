@@ -47,38 +47,239 @@ source("modules/report.R")
 source("modules/postgres.R")
 
 # Redefine %like% operator to be case insensitive (from https://stackoverflow.com/questions/41425699/how-to-get-the-like-operator-to-be-case-insensitive)
-`%like%` <- function (x, pattern) { 
+`%like%` <- function (x, pattern) {
     stringi::stri_detect_regex(x, pattern, case_insensitive=TRUE)
 }
 
 #* @apiTitle ChemBioTox API
-#* @apiDescription This is an API developed using Plumber for R designed for interfacing with the ChemBioTox (CBT) database. CBT is a comprehensive chemical database built on Postgres that contains property and toxicological annotations for over 1 million chemicals of interest to the EPA. Data within CBT is sourced from various publicly available databases (i.e., CTD), calculated using bioinformatics tools (i.e., RDKit), or produced from proprietary technology from Instem and Simulations Plus (not available in the public version of the API: you must log in using NIH credentials to access these endpoints). <br><br> Datasources and tools used in the development of the ChemBioTox (CBT) database include:<br> <ul> <li> ChEMBL v3.4 - Zdrazil B, et al. The ChEMBL Database in 2023: a drug discovery platform spanning multiple bioactivity data types and time periods. Nucleic Acids Research, Volume 52, Issue D1, 5 January 2024, Pages D1180–D1192, <a href="https://doi.org/10.1093/nar/gkad1004">https://doi.org/10.1093/nar/gkad1004</a> </li><li> Chemical and Products Database (CPDat) - Dionisio K, Philips K, Price P, et al. The Chemical and Products Database, a resource for exposure-relevant data on chemicals in consumer products. Sci Data 5, 180125 (2018). <a href="https://doi.org/10.1038/sdata.2018.125"> https://doi.org/10.1038/sdata.2018.125</a> </li><li> Comparative Toxicogenomics Database (CTD) - Davis AP, Wiegers TC, Johnson RJ, Sciaky D, Wiegers J, Mattingly CJ. Comparative Toxicogenomics Database (CTD): update 2023. Nucleic Acids Res. 2022 Sep 28. <a href="https://ctdbase.org/">https://ctdbase.org/</a> </li><li> DrugBank Online - Knox C, et al. DrugBank 6.0: the DrugBank Knowledgebase for 2024. Nucleic Acids Res. 2024 Jan 5;52(D1):D1265-D1275. <a href="https://doi.org/10.1093/nar/gkad976">https://doi.org/10.1093/nar/gkad976</a>, <a href="https://go.drugbank.com/">https://go.drugbank.com/</a> </li><li> EPA CompTox Chemicals Dashboard v2.4.1 - Williams AJ, Grulke CM, Edwards J, et al. The CompTox Chemistry Dashboard: a community data resource for environmental chemistry. J Cheminform 9, 61 (2017). <a href="https://doi.org/10.1186/s13321-017-0247-6">https://doi.org/10.1186/s13321-017-0247-6</a>, <a href="https://comptox.epa.gov/dashboard/">https://comptox.epa.gov/dashboard/</a> </li><li> FooDB v1.0 - https://foodb.ca</li><li> Generally Recognized As Safe (GRAS) Substances SCOGS Database - US FDA <a href="https://www.cfsanappsexternal.fda.gov/scripts/fdcc/?set=SCOGS">https://www.cfsanappsexternal.fda.gov/scripts/fdcc/?set=SCOGS</a>, <a href="https://www.fda.gov/food/generally-recognized-safe-gras/gras-substances-scogs-database">https://www.fda.gov/food/generally-recognized-safe-gras/gras-substances-scogs-database</a> </li><li> Human Metabolome Database (HMDB) - Wishart DS, Guo A, Oler E, Wang F, Anjum A, Peters H, Dizon R, Sayeeda Z, Tian S, Lee BL, Berjanskii M, Mah R, Yamamoto M, Jovel J, Torres-Calzada C, Hiebert-Giesbrecht M, Lui VW, Varshavi D, Varshavi D, Allen D, Arndt D, Khetarpal N, Sivakumaran A, Harford K, Sanford S, Yee K, Cao X, Budinski Z, Liigand J, Zhang L, Zheng J, Mandal R, Karu N, Dambrova M, Schiöth HB, Greiner R, Gautam V. HMDB 5.0: the Human Metabolome Database for 2022. Nucleic Acids Res. 2022 Jan 7;50(D1):D622-D631. <a href="https://doi.org/10.1093/nar/gkab1062">https://doi.org/10.1093/nar/gkab1062</a>. PMID: 34986597; PMCID: PMC8728138.</li><li> InVitroDB v3.5 - <a href="https://www.epa.gov/comptox-tools/exploring-toxcast-data">https://www.epa.gov/comptox-tools/exploring-toxcast-data</a> </li><li> OCHEM - Sushko I, et al. Online chemical modeling environment (OCHEM): web platform for data storage, model development and publishing of chemical information. J Comput Aided Mol Des. 2011; 25(6):533-54. <a href="https://doi.org/10.1007/s10822-011-9440-2">https://doi.org/10.1007/s10822-011-9440-2</a>, <a href="https://ochem.eu/home/show.do">https://ochem.eu/home/show.do</a> </li><li> PubChem - Kim S, Chen J, Cheng T, et al. PubChem 2023 update. Nucleic Acids Res. 2023;51(D1):D1373–D1380. <a href="https://doi.org/10.1093/nar/gkac956">https://doi.org/10.1093/nar/gkac956</a>, <a href="https://pubchem.ncbi.nlm.nih.gov/ ">https://pubchem.ncbi.nlm.nih.gov/</a> </li><li> RDKit - <a href="https://github.com/rdkit/rdkit">https://github.com/rdkit/rdkit</a> </li><li> Toxin and Toxin Target Database (T3DB) - Wishart D, et al. T3DB: the toxic exposome database. Nucleic Acids Res. 2015 Jan;43(Database issue):D928-34. <a href="ttps://doi.org/10.1093/nar/gku1004">https://doi.org/10.1093/nar/gku1004</a>; Lim E, et al. T3DB: a comprehensively annotated database of common toxins and their targets. Nucleic Acids Res. 2010 Jan 38(Database issue):D781-6. <a href="https://doi.org/10.1093/nar/gkp934">https://doi.org/10.1093/nar/gkp934</a>; <a href="http://www.t3db.ca/">http://www.t3db.ca/</a> </li><li> ToxRefDB - Martin MT and Judson R. ToxRefDB - Release user-friendly web-based tool for mining ToxRefDB. U.S. Environmental Protection Agency, Washington, DC, 2010. <a href="https://cfpub.epa.gov/si/si_public_record_report.cfm?Lab=NCCT&dirEntryId=227139">https://cfpub.epa.gov/si/si_public_record_report.cfm?Lab=NCCT&dirEntryId=227139</a>, <a href="https://www.epa.gov/comptox-tools/exploring-toxcast-data">https://www.epa.gov/comptox-tools/exploring-toxcast-data</a> </ul><br>The API's GitHub repository can be accessed <a href="https://github.com/combspk/chembiotox-api">here</a>.
+#* @apiDescription This is an API developed using Plumber for R designed for interfacing with the ChemBioTox (CBT) database. CBT is a comprehensive chemical database built on Postgres that contains property and toxicological annotations for over 1 million chemicals of interest to the EPA. Data within CBT is sourced from various publicly available databases (i.e., CTD), calculated using bioinformatics tools (i.e., RDKit), or produced from proprietary technology from Instem and Simulations Plus (not available in the public version of the API: you must log in using NIH credentials to access these endpoints). <br><br> Datasources and tools used in the development of the ChemBioTox (CBT) database include:<br> <ul> <li> ChEMBL v3.4 - Zdrazil B, et al. The ChEMBL Database in 2023: a drug discovery platform spanning multiple bioactivity data types and time periods. Nucleic Acids Research, Volume 52, Issue D1, 5 January 2024, Pages D1180–D1192, <a href="https://doi.org/10.1093/nar/gkad1004">https://doi.org/10.1093/nar/gkad1004</a> </li><li> Chemical and Products Database (CPDat) - Dionisio K, Philips K, Price P, et al. The Chemical and Products Database, a resource for exposure-relevant data on chemicals in consumer products. Sci Data 5, 180125 (2018). <a href="https://doi.org/10.1038/sdata.2018.125"> https://doi.org/10.1038/sdata.2018.125</a> </li><li> Comparative Toxicogenomics Database (CTD) - Davis AP, Wiegers TC, Johnson RJ, Sciaky D, Wiegers J, Mattingly CJ. Comparative Toxicogenomics Database (CTD): update 2023. Nucleic Acids Res. 2022 Sep 28. <a href="https://ctdbase.org/">https://ctdbase.org/</a> </li><li> DrugBank Online - Knox C, et al. DrugBank 6.0: the DrugBank Knowledgebase for 2024. Nucleic Acids Res. 2024 Jan 5;52(D1):D1265-D1275. <a href="https://doi.org/10.1093/nar/gkad976">https://doi.org/10.1093/nar/gkad976</a>, <a href="https://go.drugbank.com/">https://go.drugbank.com/</a> </li><li> EPA CompTox Chemicals Dashboard v2.4.1 - Williams AJ, Grulke CM, Edwards J, et al. The CompTox Chemistry Dashboard: a community data resource for environmental chemistry. J Cheminform 9, 61 (2017). <a href="https://doi.org/10.1186/s13321-017-0247-6">https://doi.org/10.1186/s13321-017-0247-6</a>, <a href="https://comptox.epa.gov/dashboard/">https://comptox.epa.gov/dashboard/</a> </li><li> FooDB v1.0 - https://foodb.ca</li><li> Generally Recognized As Safe (GRAS) Substances SCOGS Database - US FDA <a href="https://www.cfsanappsexternal.fda.gov/scripts/fdcc/?set=SCOGS">https://www.cfsanappsexternal.fda.gov/scripts/fdcc/?set=SCOGS</a>, <a href="https://www.fda.gov/food/generally-recognized-safe-gras/gras-substances-scogs-database">https://www.fda.gov/food/generally-recognized-safe-gras/gras-substances-scogs-database</a> </li><li> Human Metabolome Database (HMDB) - Wishart DS, Guo A, Oler E, Wang F, Anjum A, Peters H, Dizon R, Sayeeda Z, Tian S, Lee BL, Berjanskii M, Mah R, Yamamoto M, Jovel J, Torres-Calzada C, Hiebert-Giesbrecht M, Lui VW, Varshavi D, Varshavi D, Allen D, Arndt D, Khetarpal N, Sivakumaran A, Harford K, Sanford S, Yee K, Cao X, Budinski Z, Liigand J, Zhang L, Zheng J, Mandal R, Karu N, Dambrova M, Schiöth HB, Greiner R, Gautam V. HMDB 5.0: the Human Metabolome Database for 2022. Nucleic Acids Res. 2022 Jan 7;50(D1):D622-D631. <a href="https://doi.org/10.1093/nar/gkab1062">https://doi.org/10.1093/nar/gkab1062</a>. PMID: 34986597; PMCID: PMC8728138.</li><li> InVitroDB v3.5 - <a href="https://www.epa.gov/comptox-tools/exploring-toxcast-data">https://www.epa.gov/comptox-tools/exploring-toxcast-data</a> </li><li> OCHEM - Sushko I, et al. Online chemical modeling environment (OCHEM): web platform for data storage, model development and publishing of chemical information. J Comput Aided Mol Des. 2011; 25(6):533-54. <a href="https://doi.org/10.1007/s10822-011-9440-2">https://doi.org/10.1007/s10822-011-9440-2</a>, <a href="https://ochem.eu/home/show.do">https://ochem.eu/home/show.do</a> </li><li> PubChem - Kim S, Chen J, Cheng T, et al. PubChem 2023 update. Nucleic Acids Res. 2023;51(D1):D1373–D1380. <a href="https://doi.org/10.1093/nar/gkac956">https://doi.org/10.1093/nar/gkac956</a>, <a href="https://pubchem.ncbi.nlm.nih.gov/ ">https://pubchem.ncbi.nlm.nih.gov/</a> </li><li> RDKit - <a href="https://github.com/rdkit/rdkit">https://github.com/rdkit/rdkit</a> </li><li> Toxin and Toxin Target Database (T3DB) - Wishart D, et al. T3DB: the toxic exposome database. Nucleic Acids Res. 2015 Jan;43(Database issue):D928-34. <a href="ttps://doi.org/10.1093/nar/gku1004">https://doi.org/10.1093/nar/gku1004</a>; Lim E, et al. T3DB: a comprehensively annotated database of common toxins and their targets. Nucleic Acids Res. 2010 Jan 38(Database issue):D781-6. <a href="https://doi.org/10.1093/nar/gkp934">https://doi.org/10.1093/nar/gkp934</a>; <a href="http://www.t3db.ca/">http://www.t3db.ca/</a> </li><li> ToxRefDB - Martin MT and Judson R. ToxRefDB - Release user-friendly web-based tool for mining ToxRefDB. U.S. Environmental Protection Agency, Washington, DC, 2010. <a href="https://cfpub.epa.gov/si/si_public_record_report.cfm?Lab=NCCT&dirEntryId=227139">https://cfpub.epa.gov/si/si_public_record_report.cfm?Lab=NCCT&dirEntryId=227139</a>, <a href="https://www.epa.gov/comptox-tools/exploring-toxcast-data">https://www.epa.gov/comptox-tools/exploring-toxcast-data</a> </li> <li>Generalized Read-Across (GenRA) - Patlewicz G and Shah I. Towards systematic read-across using Generalised Read-Across (GenRA). Computational Toxicology 2023, Vol 25. <a href="https://doi.org/10.1016/j.comtox.2022.100258">https://doi.org/10.1016/j.comtox.2022.100258</a></li></ul><br>The API's GitHub repository can be accessed <a href="https://github.com/combspk/chembiotox-api">here</a>.
 #* @apiVersion 0.1.0
 
 
-# #* Get a list of all chemicals supported by ChemBioTox
-# #* @get /lists/base_chemicals
-# #* @tag "Lists"
-# function() {
-#     # Get internal IDs for given chemical
-#     chemicals <- run_query(paste0("
-#         SELECT DISTINCT
-#             bc.dsstox_substance_id,
-#             bcc.dsstox_compound_id,
-#             bcc.preferred_name,
-#             bcc.casrn
-#         FROM
-#             base_chemicals bc
-#         LEFT JOIN base_chemical_compounds bcc
-#             ON bc.epa_id = bcc.epa_id
-#     "))
+# # Check authentication for
+# #* @filter checkAuth
+# function(res, req, req, res){
+#
+#     print("===req")
+#     print(req$cookies)
+#
+#     print(names(req))
+#
+#     print("===res")
+#     print(res)
+#
+#     if (is.null(req$username)){
+#         res$status <- 401 # Unauthorized
+#         return(list(error="Authentication required"))
+#     } else {
+#         plumber::forward()
+#     }
 # }
+
+
+
+#* Get a list of all chemicals supported by ChemBioTox
+#* @get /lists/chemicals/chembiotox
+#* @tag "Lists"
+function(res, req) {
+    # Get internal IDs for given chemical
+    chemicals <- run_query(paste0("
+        SELECT DISTINCT
+            bc.dsstox_substance_id,
+            bcc.dsstox_compound_id,
+            bcc.preferred_name,
+            bcc.casrn,
+            bcc.inchi,
+            bcc.inchikey
+        FROM
+            base_chemicals bc
+        LEFT JOIN base_chemical_compounds bcc
+            ON bc.epa_id = bcc.epa_id
+    "))
+    fwrite(chemicals, "lists/lists_chemicals_chembiotox.csv", sep=",")
+    return(FALSE)
+    # include_file("lists/lists_chemicals_chembiotox.csv", res, "text/csv")
+}
+
+#* Get a list of all chemicals supported by DrugMatrix
+#* @get /lists/chemicals/drugmatrix
+#* @tag "Lists"
+function(res, req) {
+    # # Get internal IDs for given chemical
+    # chemicals <- run_query(paste0("
+    #     SELECT
+    #         dbc.dsstox_substance_id,
+    #         dbc.compound,
+    #         dbc.chemical_name
+    #     FROM
+    #         drugmatrix_to_base_chemicals dbc
+    #     LEFT JOIN base_chemicals bc
+    #         ON dbc.dsstox_substance_id = bc.dsstox_substance_id
+    #     LEFT JOIN base_chemical_compounds bcc
+    #         ON bc.epa_id = bcc.epa_id
+    # "))
+    # fwrite(chemicals, "lists/lists_chemicals_drugmatrix.csv", sep=",")
+
+    include_file("lists/lists_chemicals_drugmatrix.csv", res, "text/csv")
+}
+
+#* Get a list of all chemicals supported by DrugBank
+#* @get /lists/chemicals/drugbank
+#* @tag "Lists"
+function(res, req) {
+    # Get internal IDs for given chemical
+    # chemicals <- run_query(paste0("
+    #     SELECT
+    #         dbc.dsstox_substance_id,
+    #         dbc.drugbank_id,
+    #         bcc.preferred_name
+    #     FROM
+    #         drugbank_to_base_chemicals dbc
+    #     LEFT JOIN base_chemical_compounds bcc
+    #         ON dbc.epa_id = bcc.epa_id
+    # "))
+    # fwrite(chemicals, "lists/lists_chemicals_drugbank.csv", sep=",")
+
+    include_file("lists/lists_chemicals_drugbank.csv", res, "text/csv")
+}
+
+#* Get a list of all chemicals supported by the T3DB
+#* @get /lists/chemicals/t3db
+#* @tag "Lists"
+function(res, req) {
+    # Get internal IDs for given chemical
+    # chemicals <- run_query(paste0("
+    #     SELECT
+    #         ttbc.dsstox_substance_id,
+    #         tcc.chemical_name,
+    #         tcc.casrn,
+    #         tcc.smiles,
+    #         tcc.inchi,
+    #         tcc.inchikey,
+    #         tcc.pubchem_id,
+    #         tcc.chemspider_id,
+    #         tcc.kegg_id
+    #     FROM
+    #         t3db_curated_chemicals tcc
+    #     LEFT JOIN t3db_to_base_chemicals ttbc
+    #         ON tcc.t3db_id = ttbc.t3db_id
+    # "))
+    # fwrite(chemicals, "lists/lists_chemicals_t3db.csv", sep=",")
+
+    include_file("lists/lists_chemicals_t3db.csv", res, "text/csv")
+}
+
+#* Get a list of all chemicals supported by the T3DB
+#* @get /lists/chemicals/t3db
+#* @tag "Lists"
+function(res, req) {
+    # Get internal IDs for given chemical
+    # chemicals <- run_query(paste0("
+    #     SELECT
+    #         ttbc.dsstox_substance_id,
+    #         tcc.chemical_name,
+    #         tcc.casrn,
+    #         tcc.smiles,
+    #         tcc.inchi,
+    #         tcc.inchikey,
+    #         tcc.pubchem_id,
+    #         tcc.chemspider_id,
+    #         tcc.kegg_id
+    #     FROM
+    #         t3db_curated_chemicals tcc
+    #     LEFT JOIN t3db_to_base_chemicals ttbc
+    #         ON tcc.t3db_id = ttbc.t3db_id
+    # "))
+    # fwrite(chemicals, "lists/lists_chemicals_t3db.csv", sep=",")
+
+    include_file("lists/lists_chemicals_t3db.csv", res, "text/csv")
+}
+
+#* Get a list of all chemicals supported by Tox21
+#* @get /lists/chemicals/tox21
+#* @tag "Lists"
+function(res, req) {
+    # Get internal IDs for given chemical
+    # chemicals <- run_query(paste0("
+    #     SELECT DISTINCT
+    #         bc.dsstox_substance_id,
+    #         bcc.dsstox_compound_id,
+    #         bcc.preferred_name,
+    #         bcc.casrn,
+    #         bcc.inchi,
+    #         bcc.inchikey
+    #     FROM
+    #         base_chemicals bc
+    #     LEFT JOIN base_chemical_compounds bcc
+    #         ON bc.epa_id = bcc.epa_id
+    #     WHERE bc.dsstox_substance_id IN (SELECT DISTINCT dsstox_substance_id FROM tox21_to_base_chemicals)
+    # "))
+    # fwrite(chemicals, "lists/lists_chemicals_tox21.csv", sep=",")
+    include_file("lists/lists_chemicals_tox21.csv", res, "text/csv")
+}
+
+#* Get a list of all chemicals supported by PubChem
+#* @get /lists/chemicals/pubchem
+#* @tag "Lists"
+function(res, req) {
+    # Get internal IDs for given chemical
+    # chemicals <- run_query(paste0("
+    #     SELECT DISTINCT
+    #         bcpc.pubchem_cid,
+    #         bc.dsstox_substance_id,
+    #         bcc.dsstox_compound_id,
+    #         bcc.preferred_name,
+    #         bcc.casrn,
+    #         bcc.inchi,
+    #         bcc.inchikey
+    #     FROM
+    #         base_chemical_to_pubchem_cid bcpc,
+    #         base_chemicals bc
+    #     LEFT JOIN base_chemical_compounds bcc
+    #         ON bc.epa_id = bcc.epa_id
+    #     WHERE bc.epa_id = bcpc.epa_id
+    #
+    # "))
+    # fwrite(chemicals, "lists/lists_chemicals_pubchem.csv", sep=",")
+    include_file("lists/lists_chemicals_pubchem.csv", res, "text/csv")
+}
+
+#* Given a DSSTox substance ID, return vendors that sell the chemical
+#* @param dtxsid DSSTox substance ID
+#* @get /availability/vendors
+#* @tag "Availability"
+function(res, req, dtxsid = "") {
+    # Get internal IDs for given chemical
+    internal_id <- run_query(paste0("
+         SELECT DISTINCT
+            bc.dsstox_substance_id,
+            bcc.preferred_name,
+            bcc.casrn,
+            pca.source_name,
+            pca.source_record_url AS url
+        FROM
+            base_chemical_to_pubchem_cid bpc,
+            pubchem_chemical_availability pca,
+            base_chemicals bc,
+            base_chemical_compounds bcc
+        WHERE
+            bc.dsstox_substance_id = $1
+        AND bc.epa_id = bcc.epa_id
+        AND bc.epa_id = bpc.epa_id
+        AND bpc.pubchem_cid = pca.pubchem_cid
+    "), args=as.list(dtxsid))
+}
+
+
+
+
+
 
 #* Given a chemical name, return the DSSTox substance ID.
 #* @param name chemical name
 #* @get /name2dtxsid
 #* @tag "Identifier Lookup"
-function(name = "") {
+function(res, req, name = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -96,7 +297,7 @@ function(name = "") {
 #* @param name chemical name
 #* @get /casrn2dtxsid
 #* @tag "Identifier Lookup"
-function(casrn = "") {
+function(res, req, casrn = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -114,7 +315,7 @@ function(casrn = "") {
 #* @param smiles SMILES string
 #* @get /smiles2dtxsid
 #* @tag "Identifier Lookup"
-function(smiles = "") {
+function(res, req, smiles = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -137,7 +338,7 @@ function(smiles = "") {
 #* @param dtxsid DSSTox substance ID
 #* @get /dtxsid2smiles
 #* @tag "Identifier Lookup"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -159,7 +360,7 @@ function(dtxsid = "") {
 #* @param dtxsid DSSTox substance ID
 #* @get /cid
 #* @tag "Identifier Lookup"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -179,12 +380,12 @@ function(dtxsid = "") {
 #* @param mode Fingerprint mode. Supported modes are: "atompair", "avalon", "maccskeys", "morgan", "rdkit", "rdklayer", "rdkpattern", "topologicaltorsion"
 #* @get /fingerprint
 #* @tag "Identifier Lookup"
-function(dtxsid="", mode="rdkit") {
-    
+function(res, req, dtxsid="", mode="rdkit") {
+
     if(!(mode %in% c("atompair", "avalon", "maccskeys", "morgan", "rdkit", "rdklayer", "rdkpattern", "topologicaltorsion"))){
         return(paste0("Error: unsupported fingerprint type: ", mode))
     }
-    
+
     # Get internal IDs for given chemical
     fp <- run_query(paste0("
         SELECT DISTINCT
@@ -205,7 +406,7 @@ function(dtxsid="", mode="rdkit") {
 # #* @param dtxsid DSSTox substance ID
 # #* @get /annotate
 # #* @tag "Summary"
-# function(dtxsid = "") {
+# function(res, req, dtxsid = "") {
 #     # Get internal IDs for given chemical
 #     internal_id <- run_query(paste0("
 #         SELECT DISTINCT
@@ -216,9 +417,9 @@ function(dtxsid="", mode="rdkit") {
 #         WHERE
 #             bc.dsstox_substance_id = $1
 #     "), args=as.list(dtxsid))
-#     
+#
 #     if(nrow(internal_id) > 0){
-#         
+#
 #         input_all_annotations <- list(
 #             "switch__admet_binr"=FALSE,
 #             "switch__admet_catg"=FALSE,
@@ -268,32 +469,63 @@ function(dtxsid="", mode="rdkit") {
 #     }
 # }
 
-# #* Given a DSSTox substance ID, return chemical properties from GenRA.
-# #* @param dtxsid DSSTox substance ID
-# #* @get /genra_properties
-# #* @tag "Chemical Properties"
-# function(dtxsid="") {
-#     # Get internal IDs for given chemical
-#     prop <- run_query(paste0("
-#         SELECT DISTINCT
-#             fp.bv
-#         FROM
-#             base_chemicals bc,
-#             base_chemical_to_smiles bcs,
-#             base_chemical_fingerprint_", mode, " fp
-#         WHERE
-#             bc.dsstox_substance_id = $1
-#         AND bcs.epa_id = bc.epa_id
-#         AND bcs.smi_id = fp.smi_id
-#     "), args=as.list(dtxsid))
-# }
+#* Given a DSSTox substance ID, return chemical properties from GenRA. NOTE: This endpoint is still in development and responses may not be correct.
+#* @param dtxsid DSSTox substance ID
+#* @get /genra/properties
+#* @tag "Chemical Properties"
+function(res, req, dtxsid="") {
+    # Get internal IDs for given chemical
+    prop <- run_query(paste0("
+        SELECT DISTINCT
+            gbcr.boiling_temp,
+            gbcr.henrys_law,
+            gbcr.hydrogen_bond_acceptors,
+            gbcr.hydrogen_bond_donors,
+            gbcr.mass,
+            gbcr.melting_temp,
+            gbcr.vapor_pressure,
+            gbcr.water_solubility,
+            gbcr.log_kow,
+            gbcr.role
+        FROM
+            base_chemicals bc,
+            base_chemical_compounds bcc,
+            zz_genra_base_chemical_information gbcr
+        WHERE
+            bc.dsstox_substance_id = $1
+        AND bc.epa_id = bcc.epa_id
+        AND bcc.dsstox_compound_id = gbcr.dsstox_compound_id
+    "), args=as.list(dtxsid))
+}
+
+#* Given a DSSTox substance ID, return chemical test results from GenRA. NOTE: This endpoint is still in development and responses may not be correct.
+#* @param dtxsid DSSTox substance ID
+#* @get /genra/tests
+#* @tag "Chemical Properties"
+function(res, req, dtxsid="") {
+    # Get internal IDs for given chemical
+    prop <- run_query(paste0("
+        SELECT DISTINCT
+            gbcr.testing_definition,
+            gbcr.testing_result
+        FROM
+            base_chemicals bc,
+            base_chemical_compounds bcc,
+            zz_genra_base_chemical_results gbcr
+        WHERE
+            bc.dsstox_substance_id = $1
+        AND bc.epa_id = bcc.epa_id
+        AND bcc.dsstox_compound_id = gbcr.dsstox_compound_id
+    "), args=as.list(dtxsid))
+}
+
 
 #* Given a DSSTox substance ID, annotate using the Chemical and Products Database (CPDat) available in CBT. Contains information about a chemical's usage in commercially-available products.
 #* @param dtxsid DSSTox substance ID
 #* @get /cpdat
 #* @tag "Commercial and Industrial Usage"
 #* @tag "Environmental Fate and Exposure Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -304,9 +536,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__cpd"
         )
@@ -319,7 +551,7 @@ function(dtxsid = "") {
 #* @param dtxsid DSSTox substance ID
 #* @get /image/structure
 #* @tag "Visualization"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     img <- run_query(paste0("
         SELECT DISTINCT
@@ -343,7 +575,7 @@ function(dtxsid = "") {
 #* @get /foodb
 #* @tag "Commercial and Industrial Usage"
 #* @tag "Environmental Fate and Exposure Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -354,9 +586,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__foodb_enzymes",
             "switch__foodb_flavors",
@@ -373,7 +605,7 @@ function(dtxsid = "") {
 #* @get /foodb/enzymes
 #* @tag "Commercial and Industrial Usage"
 #* @tag "Environmental Fate and Exposure Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -384,9 +616,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__foodb_enzymes"
         )
@@ -399,7 +631,7 @@ function(dtxsid = "") {
 #* @get /foodb/flavors
 #* @tag "Commercial and Industrial Usage"
 #* @tag "Environmental Fate and Exposure Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -410,9 +642,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__foodb_flavors"
         )
@@ -425,7 +657,7 @@ function(dtxsid = "") {
 #* @get /foodb/content
 #* @tag "Commercial and Industrial Usage"
 #* @tag "Environmental Fate and Exposure Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -436,9 +668,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__foodb_foodcontent"
         )
@@ -451,7 +683,7 @@ function(dtxsid = "") {
 #* @get /foodb/effects
 #* @tag "Commercial and Industrial Usage"
 #* @tag "Environmental Fate and Exposure Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -462,9 +694,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__foodb_healtheffects"
         )
@@ -478,7 +710,7 @@ function(dtxsid = "") {
 #* @get /foodb/ontology
 #* @tag "Commercial and Industrial Usage"
 #* @tag "Environmental Fate and Exposure Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -489,9 +721,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__foodb_ontology"
         )
@@ -505,7 +737,7 @@ function(dtxsid = "") {
 #* @param dtxsid DSSTox substance ID
 #* @get /gras
 #* @tag "Safety Studies"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -516,9 +748,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__gras"
         )
@@ -530,7 +762,7 @@ function(dtxsid = "") {
 #* @param dtxsid DSSTox substance ID
 #* @get /t3db
 #* @tag "Target Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -541,9 +773,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__t3db"
         )
@@ -556,7 +788,7 @@ function(dtxsid = "") {
 #* @get /invitrodb
 #* @tag "Chemical Properties"
 #* @tag "In Vitro Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -567,9 +799,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__invitrodb"
         )
@@ -581,7 +813,7 @@ function(dtxsid = "") {
 #* @param dtxsid DSSTox substance ID
 #* @get /toxrefdb/neoplasticity
 #* @tag "Disease Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -592,9 +824,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__toxrefdb_neoplastic",
             "switch__toxrefdb_nonneoplastic"
@@ -603,13 +835,79 @@ function(dtxsid = "") {
     }
 }
 
+
+#* Given a DSSTox substance ID, find studies and points of departure for the corresponding chemical in ToxRefDB data available in CBT.
+#* @param dtxsid DSSTox substance ID
+#* @get /toxrefdb/studies
+#* @tag "TODO"
+function(res, req, dtxsid = "") {
+
+    ep <- run_query(paste0("
+        SELECT DISTINCT
+            tdbp.pod_type,
+            tdbp.qualifier,
+            tdbp.pod_value,
+            tdbp.pod_unit,
+            tdbp.dose_level,
+            tdbp.max_dose_level,
+            tdbp.staggered_dosing,
+            tdbs.study_citation,
+            tdbs.study_year,
+            tdbs.study_type_guideline,
+            tdbs.species,
+            tdbs.strain_group,
+            tdbs.admin_route,
+            tdbs.substance_purity,
+            tdbt.sex,
+            tdbt.generation,
+            tdbt.dose_period,
+            tdbt.dose_duration,
+            tdbt.dose_duration_unit,
+            tdbt.n,
+            tdbte.life_stage,
+            tdbte.effect_desc_free,
+            tdbte.target_site,
+            tdbte.direction,
+            tdbte.effect_comment,
+            tdbe.effect_desc,
+            tdbe.cancer_related,
+            tdbep.endpoint_category,
+            tdbep.endpoint_type,
+            tdbep.endpoint_target
+        FROM
+            base_chemicals bc,
+            toxrefdb_chemical tdbc,
+            toxrefdb_study tdbs,
+            toxrefdb_tg tdbt,
+            toxrefdb_tg_effect tdbte,
+            toxrefdb_effect tdbe,
+            toxrefdb_endpoint tdbep,
+            toxrefdb_pod tdbp
+        WHERE
+            bc.dsstox_substance_id = $1
+        AND bc.dsstox_substance_id = tdbc.dsstox_substance_id
+        AND tdbc.chemical_id = tdbs.chemical_id
+
+        AND tdbc.chemical_id = tdbp.chemical_id
+        AND tdbp.study_id = tdbt.study_id
+
+        AND tdbs.study_id = tdbt.study_id
+        AND tdbt.tg_id = tdbte.tg_id
+        AND tdbte.effect_id = tdbe.effect_id
+        AND tdbe.endpoint_id = tdbep.endpoint_id
+
+    "), args=as.list(dtxsid))
+    return(ep)
+}
+
+
 #* Given a DSSTox substance ID, annotate using the Comparative Toxicogenomics Database (CTD) available in CBT. Contains annotations related to a chemical's biological processes, cellular components, molecular functions, associated diseases and phenotypes, and affected genes.
 #* @param dtxsid DSSTox substance ID
 #* @get /ctd
 #* @tag "Gene Annotations"
 #* @tag "Disease Annotations"
 #* @tag "Biological Process Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -620,9 +918,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__ctd_bioprocess",
             "switch__ctd_cellcomp",
@@ -639,7 +937,7 @@ function(dtxsid = "") {
 #* @param dtxsid DSSTox substance ID
 #* @get /ctd/bp
 #* @tag "Biological Process Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -650,9 +948,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__ctd_bioprocess"
         )
@@ -664,7 +962,7 @@ function(dtxsid = "") {
 #* @param dtxsid DSSTox substance ID
 #* @get /ctd/cc
 #* @tag "Chemical Properties"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -675,9 +973,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__ctd_cellcomp"
         )
@@ -689,7 +987,7 @@ function(dtxsid = "") {
 #* @param dtxsid DSSTox substance ID
 #* @get /ctd/diseases
 #* @tag "Disease Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -700,9 +998,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__ctd_diseases"
         )
@@ -715,7 +1013,7 @@ function(dtxsid = "") {
 #* @param dtxsid DSSTox substance ID
 #* @get /ctd/genes
 #* @tag "Gene Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -726,9 +1024,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__ctd_genes"
         )
@@ -741,7 +1039,7 @@ function(dtxsid = "") {
 #* @param dtxsid DSSTox substance ID
 #* @get /ctd/mf
 #* @tag "Chemical Properties"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -752,9 +1050,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__ctd_molfunct"
         )
@@ -766,7 +1064,7 @@ function(dtxsid = "") {
 #* @param dtxsid DSSTox substance ID
 #* @get /ctd/phenotypes
 #* @tag "Gene Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -777,9 +1075,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__ctd_phenotypes"
         )
@@ -795,7 +1093,7 @@ function(dtxsid = "") {
 #* @tag "Gene Annotations"
 #* @tag "Disease Annotations"
 #* @tag "Biological Process Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -806,9 +1104,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__hmdb_biospecimenlocations",
             "switch__hmdb_cellularlocations",
@@ -826,7 +1124,7 @@ function(dtxsid = "") {
 #* @get /hmdb/locations/biospecimen
 #* @tag "Biological Process Annotations"
 #* @tag "Environmental Fate and Exposure Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -837,9 +1135,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__hmdb_biospecimenlocations"
         )
@@ -853,7 +1151,7 @@ function(dtxsid = "") {
 #* @get /hmdb/locations/cell
 #* @tag "Biological Process Annotations"
 #* @tag "Environmental Fate and Exposure Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -864,9 +1162,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__hmdb_cellularlocations"
         )
@@ -878,7 +1176,7 @@ function(dtxsid = "") {
 #* @param dtxsid DSSTox substance ID
 #* @get /hmdb/diseases
 #* @tag "Disease Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -889,9 +1187,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__hmdb_diseases"
         )
@@ -903,7 +1201,7 @@ function(dtxsid = "") {
 #* @param dtxsid DSSTox substance ID
 #* @get /hmdb/genes
 #* @tag "Gene Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -914,9 +1212,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__hmdb_genes"
         )
@@ -929,7 +1227,7 @@ function(dtxsid = "") {
 #* @get /hmdb/locations/tissue
 #* @tag "Biological Process Annotations"
 #* @tag "Environmental Fate and Exposure Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -940,9 +1238,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         input_all_annotations <- list(
             "switch__hmdb_tissuelocations"
         )
@@ -953,9 +1251,9 @@ function(dtxsid = "") {
 
 #* Given a DSSTox substance ID, annotate using results from PASS predictive models available in CBT.
 #* @param dtxsid DSSTox substance ID
-#* @get /pass
+#* @get /models/pass
 #* @tag "Predictive Models"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     pass_pred <- run_query(paste0("
         SELECT DISTINCT
             ppv.pass_prediction_results::text
@@ -968,7 +1266,7 @@ function(dtxsid = "") {
         AND bc.epa_id = bcc.epa_id
         AND bcc.dsstox_compound_id = ppv.dsstox_compound_id
     "), args=as.list(dtxsid))
-    
+
     pass_models <- run_query(paste0("
         SELECT DISTINCT
             ppm.position,
@@ -977,7 +1275,7 @@ function(dtxsid = "") {
             pass_predictive_models ppm
         ORDER BY ppm.position ASC
     "))
-    
+
     pass_pred <- gsub("\\[", "", pass_pred)
     pass_pred <- gsub("\\]", "", pass_pred)
     pass_pred <- unlist(str_split(pass_pred, ","))
@@ -988,9 +1286,9 @@ function(dtxsid = "") {
 
 #* Given a DSSTox substance ID, annotate using results from CPDat's QSUR predictive models available in CBT.
 #* @param dtxsid DSSTox substance ID
-#* @get /cpdat/qsur
+#* @get /models/cpdat/qsur
 #* @tag "Predictive Models"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     qsur_pred <- run_query(paste0("
         SELECT DISTINCT
             cqd.harmonized_function,
@@ -1004,167 +1302,59 @@ function(dtxsid = "") {
 }
 
 
-# #* Given a DSSTox substance ID, annotate using predictive models from Instem (Leadscope) available in CBT.
-# #* @param dtxsid DSSTox substance ID
-# #* @param positives only return positive models?
-# #* @get /leadscope
-# #* @tag "Predictive Models"
-# #* @tag "Environmental Fate and Exposure Annotations"
-# function(dtxsid = "", positives = FALSE) {
-#     # Get internal IDs for given chemical
-#     internal_id <- run_query(paste0("
-#         SELECT DISTINCT
-#             bc.epa_id,
-#             bc.dsstox_substance_id
-#         FROM
-#             base_chemicals bc
-#         WHERE
-#             bc.dsstox_substance_id = $1
-#     "), args=as.list(dtxsid))
-#     
-#     if(nrow(internal_id) > 0){
-#         
-#         input_all_annotations <- list(
-#             "switch__admet_binr"=FALSE,
-#             "switch__chembl"=FALSE,
-#             "switch__cpd"=FALSE,
-#             "switch__ctd_bioprocess"=FALSE,
-#             "switch__ctd_cellcomp"=FALSE,
-#             "switch__ctd_diseases"=FALSE,
-#             "switch__ctd_genes"=FALSE,
-#             "switch__ctd_molfunct"=FALSE,
-#             "switch__ctd_phenotypes"=FALSE,
-#             "switch__drugbank_atccodes"=FALSE,
-#             "switch__drugbank_carriers"=FALSE,
-#             "switch__drugbank_enzymes"=FALSE,
-#             "switch__drugbank_targets"=FALSE,
-#             "switch__drugbank_transporters"=FALSE,
-#             "switch__hmdb_biospecimenlocations"=FALSE,
-#             "switch__hmdb_cellularlocations"=FALSE,
-#             "switch__hmdb_diseases"=FALSE,
-#             "switch__hmdb_genes"=FALSE,
-#             "switch__hmdb_tissuelocations"=FALSE,
-#             "switch__ice"=FALSE,
-#             "switch__invitrodb"=FALSE,
-#             "switch__leadscope"=TRUE,
-#             "switch__ochem"=FALSE,
-#             "switch__opera_adme"=FALSE,
-#             "switch__opera_environmental_fate"=FALSE,
-#             "switch__opera_physicochem"=FALSE,
-#             "switch__opera_structural_properties"=FALSE,
-#             "switch__opera_toxicology_endpoints"=FALSE,
-#             "switch__saagar"=FALSE,
-#             "switch__t3db"=FALSE,
-#             "switch__toxrefdb_neoplastic"=FALSE,
-#             "switch__toxrefdb_nonneoplastic"=FALSE,
-#             "switch__pubchem"=FALSE,
-#             "switch__pubchem_props"=FALSE,
-#             "switch__gras"=FALSE,
-#             "switch__foodb_enzymes"=FALSE,
-#             "switch__foodb_flavors"=FALSE,
-#             "switch__foodb_foodcontent"=FALSE,
-#             "switch__foodb_healtheffects"=FALSE,
-#             "switch__foodb_ontology"=FALSE,
-#             "switch__epa_props"=FALSE
-#         )
-#         annotations <- chemical_annotations(selected=as.integer(internal_id$epa_id), input=input_all_annotations, selected_node=1, dtxsids=internal_id$dsstox_substance_id, switch_mode="")
-#         
-#         annotations <- annotations[["anno_leadscope"]]
-#         
-#         if(as.booltype(positives) == TRUE){
-#             annotations <- annotations %>% filter(interpretation == 1)
-#             #print(annotations %>% filter(interpretation == 1))
-#         }
-#         
-#         return(annotations)
-#         
-#     }
-# }
-
-# #* Given a DSSTox substance ID, annotate using predictive models from ADMET Predictor available in CBT.
-# #* @param dtxsid DSSTox substance ID
-# #* @param positives only return positive models?
-# #* @get /admet
-# #* @tag "Predictive Models"
-# #* @tag "Environmental Fate and Exposure Annotations"
-# #* @tag "Transporter and Pathway Annotations"
-# function(dtxsid = "", positives = FALSE) {
-#     # Get internal IDs for given chemical
-#     internal_id <- run_query(paste0("
-#         SELECT DISTINCT
-#             bc.epa_id,
-#             bc.dsstox_substance_id
-#         FROM
-#             base_chemicals bc
-#         WHERE
-#             bc.dsstox_substance_id = $1
-#     "), args=as.list(dtxsid))
-#     
-#     if(nrow(internal_id) > 0){
-#         
-#         input_all_annotations <- list(
-#             "switch__admet_binr"=TRUE,
-#             "switch__chembl"=FALSE,
-#             "switch__cpd"=FALSE,
-#             "switch__ctd_bioprocess"=FALSE,
-#             "switch__ctd_cellcomp"=FALSE,
-#             "switch__ctd_diseases"=FALSE,
-#             "switch__ctd_genes"=FALSE,
-#             "switch__ctd_molfunct"=FALSE,
-#             "switch__ctd_phenotypes"=FALSE,
-#             "switch__drugbank_atccodes"=FALSE,
-#             "switch__drugbank_carriers"=FALSE,
-#             "switch__drugbank_enzymes"=FALSE,
-#             "switch__drugbank_targets"=FALSE,
-#             "switch__drugbank_transporters"=FALSE,
-#             "switch__hmdb_biospecimenlocations"=FALSE,
-#             "switch__hmdb_cellularlocations"=FALSE,
-#             "switch__hmdb_diseases"=FALSE,
-#             "switch__hmdb_genes"=FALSE,
-#             "switch__hmdb_tissuelocations"=FALSE,
-#             "switch__ice"=FALSE,
-#             "switch__invitrodb"=FALSE,
-#             "switch__leadscope"=FALSE,
-#             "switch__ochem"=FALSE,
-#             "switch__opera_adme"=FALSE,
-#             "switch__opera_environmental_fate"=FALSE,
-#             "switch__opera_physicochem"=FALSE,
-#             "switch__opera_structural_properties"=FALSE,
-#             "switch__opera_toxicology_endpoints"=FALSE,
-#             "switch__saagar"=FALSE,
-#             "switch__t3db"=FALSE,
-#             "switch__toxrefdb_neoplastic"=FALSE,
-#             "switch__toxrefdb_nonneoplastic"=FALSE,
-#             "switch__pubchem"=FALSE,
-#             "switch__pubchem_props"=FALSE,
-#             "switch__gras"=FALSE,
-#             "switch__foodb_enzymes"=FALSE,
-#             "switch__foodb_flavors"=FALSE,
-#             "switch__foodb_foodcontent"=FALSE,
-#             "switch__foodb_healtheffects"=FALSE,
-#             "switch__foodb_ontology"=FALSE,
-#             "switch__epa_props"=FALSE
-#         )
-#         annotations <- chemical_annotations(selected=as.integer(internal_id$epa_id), input=input_all_annotations, selected_node=1, dtxsids=internal_id$dsstox_substance_id, switch_mode="")
-#         
-#         annotations <- annotations[["anno_admet_binr"]]
-#         
-#         if(as.booltype(positives) == TRUE){
-#             annotations <- annotations %>% filter(interpretation == 1)
-#             #print(annotations %>% filter(interpretation == 1))
-#         }
-#         
-#         return(annotations)
-#         
-#     }
-# }
-
-#* Given a DSSTox substance ID, annotate using the DrugBank database available in CBT. Contains information regarding a chemical's usage in drugs and their targets.
+#* Given a DSSTox substance ID, annotate using results with Tox21 pathway endpoints available in CBT.
 #* @param dtxsid DSSTox substance ID
-#* @get /drugbank
-#* @tag "Drug Annotations"
-#* @tag "Commercial and Industrial Usage"
-function(dtxsid = "") {
+#* @get /tox21
+#* @tag "Pathways"
+function(res, req, dtxsid = "") {
+    tox21 <- run_query(paste0("
+        SELECT DISTINCT
+            tbc.endpoint_name
+        FROM
+            tox21_to_base_chemicals tbc
+        WHERE
+            tbc.dsstox_substance_id = $1
+    "), args=as.list(dtxsid))
+    return(tox21)
+}
+
+#* Given a DSSTox substance ID, annotate using results with Tox21 assay predictive models available in CBT.
+#* @param dtxsid DSSTox substance ID
+#* @get /models/tox21
+#* @tag "Predictive Models"
+function(res, req, dtxsid = "") {
+    tox21 <- run_query(paste0("
+        SELECT DISTINCT
+            tbc.activity_score,
+            tbc.assay_model,
+            tbc.ad,
+            tbc.tc
+        FROM
+            tox21_base_chemical_assay_predictions tbc
+        WHERE
+            tbc.dsstox_substance_id = $1
+    "), args=as.list(dtxsid))
+    return(tox21)
+}
+
+
+#* Given a DSSTox substance ID, annotate using predictive models from Instem (Leadscope) available in CBT.
+#* @param dtxsid DSSTox substance ID
+#* @param positives only return positive models?
+#* @get /models/leadscope
+#* @tag "Predictive Models"
+#* @tag "Environmental Fate and Exposure Annotations"
+function(res, req, dtxsid = "", positives = FALSE) {
+
+    print("===req===")
+    print(req)
+
+    # TODO: better checking for auth
+    auth <- FALSE
+    if(auth == FALSE){
+        return("Error: this endpoint is only available to internal NIEHS users. Please log in with your credentials and try again.")
+    }
+
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -1175,9 +1365,127 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+        input_all_annotations <- list(
+            "switch__leadscope"
+        )
+        annotations <- chemical_annotations(selected=as.integer(internal_id$epa_id), input=input_all_annotations, selected_node=1, dtxsids=internal_id$dsstox_substance_id, switch_mode="")[["anno_leadscope"]]
+        if(as.booltype(positives) == TRUE){
+            annotations <- annotations %>% filter(interpretation == 1)
+            #print(annotations %>% filter(interpretation == 1))
+        }
+
+        return(annotations)
+
+    }
+}
+
+#* Given a DSSTox substance ID, annotate using predictive models from ADMET Predictor available in CBT.
+#* @param dtxsid DSSTox substance ID
+#* @param positives only return positive models?
+#* @get /models/admet/qsar
+#* @tag "Predictive Models"
+#* @tag "Environmental Fate and Exposure Annotations"
+#* @tag "Transporter and Pathway Annotations"
+function(res, req, dtxsid = "", positives = FALSE) {
+
+    # TODO: better checking for auth
+    auth <- FALSE
+    if(auth == FALSE){
+        return("Error: this endpoint is only available to internal NIEHS users. Please log in with your credentials and try again.")
+    }
+
+
+    # Get internal IDs for given chemical
+    internal_id <- run_query(paste0("
+        SELECT DISTINCT
+            bc.epa_id,
+            bc.dsstox_substance_id
+        FROM
+            base_chemicals bc
+        WHERE
+            bc.dsstox_substance_id = $1
+    "), args=as.list(dtxsid))
+
+    if(nrow(internal_id) > 0){
+
+        input_all_annotations <- list(
+            "switch__admet_binr"=TRUE,
+            "switch__chembl"=FALSE,
+            "switch__cpd"=FALSE,
+            "switch__ctd_bioprocess"=FALSE,
+            "switch__ctd_cellcomp"=FALSE,
+            "switch__ctd_diseases"=FALSE,
+            "switch__ctd_genes"=FALSE,
+            "switch__ctd_molfunct"=FALSE,
+            "switch__ctd_phenotypes"=FALSE,
+            "switch__drugbank_atccodes"=FALSE,
+            "switch__drugbank_carriers"=FALSE,
+            "switch__drugbank_enzymes"=FALSE,
+            "switch__drugbank_targets"=FALSE,
+            "switch__drugbank_transporters"=FALSE,
+            "switch__hmdb_biospecimenlocations"=FALSE,
+            "switch__hmdb_cellularlocations"=FALSE,
+            "switch__hmdb_diseases"=FALSE,
+            "switch__hmdb_genes"=FALSE,
+            "switch__hmdb_tissuelocations"=FALSE,
+            "switch__ice"=FALSE,
+            "switch__invitrodb"=FALSE,
+            "switch__leadscope"=FALSE,
+            "switch__ochem"=FALSE,
+            "switch__opera_adme"=FALSE,
+            "switch__opera_environmental_fate"=FALSE,
+            "switch__opera_physicochem"=FALSE,
+            "switch__opera_structural_properties"=FALSE,
+            "switch__opera_toxicology_endpoints"=FALSE,
+            "switch__saagar"=FALSE,
+            "switch__t3db"=FALSE,
+            "switch__toxrefdb_neoplastic"=FALSE,
+            "switch__toxrefdb_nonneoplastic"=FALSE,
+            "switch__pubchem"=FALSE,
+            "switch__pubchem_props"=FALSE,
+            "switch__gras"=FALSE,
+            "switch__foodb_enzymes"=FALSE,
+            "switch__foodb_flavors"=FALSE,
+            "switch__foodb_foodcontent"=FALSE,
+            "switch__foodb_healtheffects"=FALSE,
+            "switch__foodb_ontology"=FALSE,
+            "switch__epa_props"=FALSE
+        )
+        annotations <- chemical_annotations(selected=as.integer(internal_id$epa_id), input=input_all_annotations, selected_node=1, dtxsids=internal_id$dsstox_substance_id, switch_mode="")
+
+        annotations <- annotations[["anno_admet_binr"]]
+
+        if(as.booltype(positives) == TRUE){
+            annotations <- annotations %>% filter(interpretation == 1)
+            #print(annotations %>% filter(interpretation == 1))
+        }
+
+        return(annotations)
+
+    }
+}
+
+#* Given a DSSTox substance ID, annotate using the DrugBank database available in CBT. Contains information regarding a chemical's usage in drugs and their targets.
+#* @param dtxsid DSSTox substance ID
+#* @get /drugbank
+#* @tag "Drug Annotations"
+#* @tag "Commercial and Industrial Usage"
+function(res, req, dtxsid = "") {
+    # Get internal IDs for given chemical
+    internal_id <- run_query(paste0("
+        SELECT DISTINCT
+            bc.epa_id,
+            bc.dsstox_substance_id
+        FROM
+            base_chemicals bc
+        WHERE
+            bc.dsstox_substance_id = $1
+    "), args=as.list(dtxsid))
+
+    if(nrow(internal_id) > 0){
+
         input_all_annotations <- list(
             "switch__drugbank_atccodes",
             "switch__drugbank_carriers",
@@ -1186,9 +1494,9 @@ function(dtxsid = "") {
             "switch__drugbank_transporters"
         )
         annotations <- chemical_annotations(selected=as.integer(internal_id$epa_id), input=input_all_annotations, selected_node=1, dtxsids=internal_id$dsstox_substance_id, switch_mode="")[c("anno_drugbank_atccodes", "anno_drugbank_carriers", "anno_drugbank_enzymes", "anno_drugbank_targets", "anno_drugbank_transporters")]
-        
+
         return(annotations)
-        
+
     }
 }
 
@@ -1197,7 +1505,7 @@ function(dtxsid = "") {
 #* @param dtxsid DSSTox substance ID
 #* @get /drugbank/atc_codes
 #* @tag "Drug Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -1208,7 +1516,7 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
         input_all_annotations <- list(
             "switch__drugbank_atccodes"
@@ -1223,7 +1531,7 @@ function(dtxsid = "") {
 #* @get /drugbank/carriers
 #* @tag "Drug Annotations"
 #* @tag "Biological Process Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -1234,7 +1542,7 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
         input_all_annotations <- list(
             "switch__drugbank_carriers"
@@ -1249,7 +1557,7 @@ function(dtxsid = "") {
 #* @get /drugbank/enzymes
 #* @tag "Drug Annotations"
 #* @tag "Biological Process Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -1260,7 +1568,7 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
         input_all_annotations <- list(
             "switch__drugbank_enzymes"
@@ -1275,7 +1583,7 @@ function(dtxsid = "") {
 #* @get /drugbank/targets
 #* @tag "Drug Annotations"
 #* @tag "Biological Process Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -1286,7 +1594,7 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
         input_all_annotations <- list(
             "switch__drugbank_targets"
@@ -1301,7 +1609,7 @@ function(dtxsid = "") {
 #* @get /drugbank/transporters
 #* @tag "Drug Annotations"
 #* @tag "Biological Process Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -1312,7 +1620,7 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
         input_all_annotations <- list(
             "switch__drugbank_transporters"
@@ -1323,52 +1631,59 @@ function(dtxsid = "") {
 }
 
 
-# #* Given a DSSTox substance ID, annotate using the predicted metabolites from ADMET Predictor available in CBT.
-# #* @param dtxsid DSSTox substance ID
-# #* @param enzyme cyp or ugt or "both"
-# #* @param maxlevel maximum level of metabolism
-# #* @get /metabolites
-# #* @tag "Predictive Models"
-# #* @tag "Transporter and Pathway Annotations"
-# function(dtxsid = "", enzyme = "", maxlevel = 1) {
-#     # Get internal IDs for given chemical
-#     internal_id <- run_query(paste0("
-#         SELECT DISTINCT
-#             bc.epa_id,
-#             bc.dsstox_substance_id
-#         FROM
-#             base_chemicals bc
-#         WHERE
-#             bc.dsstox_substance_id = $1
-#     "), args=as.list(dtxsid))
-#     
-#     if(nrow(internal_id) > 0){
-#         metabolites_full <- list()
-#         if(enzyme == "both"){
-#             metabolites_full_cyp <- lapply(seq_len(maxlevel), function(x){
-#                 metabolites <- metabolites_query("cyp", x, as.integer(internal_id$epa_id))
-#             })
-#             metabolites_full_cyp <- rbindlist(metabolites_full_cyp)
-#             metabolites_full_ugt <- lapply(seq_len(maxlevel), function(x){
-#                 metabolites <- metabolites_query("ugt", x, as.integer(internal_id$epa_id))
-#             })
-#             metabolites_full_ugt <- rbindlist(metabolites_full_ugt)
-#             metabolites_full <- list(metabolites_full_cyp, metabolites_full_ugt)
-#         } else {
-#             metabolites_full <- lapply(seq_len(maxlevel), function(x){
-#                 metabolites <- metabolites_query(enzyme, x, as.integer(internal_id$epa_id))
-#             })
-#         }
-#         metabolites_full <- rbindlist(metabolites_full, fill=TRUE)
-#         return(metabolites_full)
-#     }
-# }
+#* Given a DSSTox substance ID, annotate using the predicted metabolites from ADMET Predictor available in CBT.
+#* @param dtxsid DSSTox substance ID
+#* @param enzyme cyp or ugt or "both"
+#* @param maxlevel maximum level of metabolism
+#* @get /models/admet/metabolites
+#* @tag "Predictive Models"
+#* @tag "Transporter and Pathway Annotations"
+function(res, req, dtxsid = "", enzyme = "", maxlevel = 1) {
+
+    # TODO: better checking for auth
+    auth <- FALSE
+    if(auth == FALSE){
+        return("Error: this endpoint is only available to internal NIEHS users. Please log in with your credentials and try again.")
+    }
+
+    # Get internal IDs for given chemical
+    internal_id <- run_query(paste0("
+        SELECT DISTINCT
+            bc.epa_id,
+            bc.dsstox_substance_id
+        FROM
+            base_chemicals bc
+        WHERE
+            bc.dsstox_substance_id = $1
+    "), args=as.list(dtxsid))
+
+    if(nrow(internal_id) > 0){
+        metabolites_full <- list()
+        if(enzyme == "both"){
+            metabolites_full_cyp <- lapply(seq_len(maxlevel), function(res, req, x){
+                metabolites <- metabolites_query("cyp", x, as.integer(internal_id$epa_id))
+            })
+            metabolites_full_cyp <- rbindlist(metabolites_full_cyp)
+            metabolites_full_ugt <- lapply(seq_len(maxlevel), function(res, req, x){
+                metabolites <- metabolites_query("ugt", x, as.integer(internal_id$epa_id))
+            })
+            metabolites_full_ugt <- rbindlist(metabolites_full_ugt)
+            metabolites_full <- list(metabolites_full_cyp, metabolites_full_ugt)
+        } else {
+            metabolites_full <- lapply(seq_len(maxlevel), function(res, req, x){
+                metabolites <- metabolites_query(enzyme, x, as.integer(internal_id$epa_id))
+            })
+        }
+        metabolites_full <- rbindlist(metabolites_full, fill=TRUE)
+        return(metabolites_full)
+    }
+}
 
 #* Given a SMILES string, check for (OChem, ChEMBL, Saagar) structural alerts and notable substructures.
 #* @param smiles SMILES string
 #* @get /alerts
 #* @tag "Substructure Search"
-function(smiles = "") {
+function(res, req, smiles = "") {
     # OChem
     alerts_ochem <- run_query(paste0("
         SELECT DISTINCT
@@ -1379,7 +1694,7 @@ function(smiles = "") {
         WHERE
             mol_from_smiles($1)@> osa.m
     "), args=as.list(smiles))
-    
+
     # ChEMBL
     alerts_chembl <- run_query(paste0("
         SELECT DISTINCT
@@ -1390,7 +1705,7 @@ function(smiles = "") {
         WHERE
             mol_from_smiles($1)@> mol_from_smarts(csa.smarts)
     "), args=as.list(smiles))
-    
+
     # Saagar
     alerts_saagar <- run_query(paste0("
         SELECT DISTINCT
@@ -1401,7 +1716,7 @@ function(smiles = "") {
         WHERE
             mol_from_smiles($1)@> ssa.m
     "), args=as.list(smiles))
-    
+
     alerts <- rbindlist(list(alerts_ochem, alerts_chembl, alerts_saagar))
     return(alerts)
 }
@@ -1411,7 +1726,7 @@ function(smiles = "") {
 #* @param dtxsid DSSTox substance ID
 #* @get /pubchem/properties
 #* @tag "Chemical Properties"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     props <- run_query(paste0("
         SELECT DISTINCT
             pa.pubchem_attribute,
@@ -1432,7 +1747,7 @@ function(dtxsid = "") {
 #* @param dtxsid DSSTox substance ID
 #* @get /epa/properties
 #* @tag "Chemical Properties"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     props <- run_query(paste0("
         SELECT DISTINCT
             ep.epa_attribute,
@@ -1453,7 +1768,7 @@ function(dtxsid = "") {
 #* @get /pubchem/bioassays
 #* @tag "Biological Process Annotations"
 #* @tag "Assays"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     assays <- run_query(paste0("
         SELECT DISTINCT
             pb.bioassay_name,
@@ -1489,7 +1804,7 @@ function(dtxsid = "") {
 #* @param dtxsid DSSTox substance ID
 #* @get /ntp/test_articles
 #* @tag "Assays"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     assays <- run_query(paste0("
         SELECT DISTINCT
             bcta.testarticle,
@@ -1513,7 +1828,7 @@ function(dtxsid = "") {
 #* @param dtxsid DSSTox substance ID
 #* @get /seem3
 #* @tag "Environmental Fate and Exposure Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     # Get internal IDs for given chemical
     internal_id <- run_query(paste0("
         SELECT DISTINCT
@@ -1524,9 +1839,9 @@ function(dtxsid = "") {
         WHERE
             bc.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
-    
+
     if(nrow(internal_id) > 0){
-        
+
         # SEEM3
         exp_seem3 <- run_query(paste0("
             SELECT DISTINCT
@@ -1538,8 +1853,8 @@ function(dtxsid = "") {
                 bcs.epa_id::text = $1
             AND bcs.data_name = 'seem3u95'
         "), args=as.list(as.character(internal_id$epa_id)))
-        
-        
+
+
         exp <- rbindlist(list(exp_seem3))
         return(exp)
     }
@@ -1549,7 +1864,7 @@ function(dtxsid = "") {
 #* @param dtxsid DSSTox substance ID
 #* @get /cmax
 #* @tag "Environmental Fate and Exposure Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     cmax <- run_query(paste0("
         SELECT DISTINCT
             bcc.mw,
@@ -1574,7 +1889,7 @@ function(dtxsid = "") {
 #* @param dtxsid DSSTox substance ID
 #* @get /superfund
 #* @tag "Environmental Fate and Exposure Annotations"
-function(dtxsid = "") {
+function(res, req, dtxsid = "") {
     sfund <- run_query(paste0("
         SELECT DISTINCT
             sdd.rmedia_desc,
@@ -1603,22 +1918,22 @@ function(dtxsid = "") {
 # #* Plot a histogram
 # #* @serializer png
 # #* @get /plot
-# function() {
+# function(res, req, ) {
 #     rand <- rnorm(100)
 #     hist(rand)
 # }
-# 
+#
 # #* Return the sum of two numbers
 # #* @param a The first number to add
 # #* @param b The second number to add
 # #* @post /sum
-# function(a, b) {
+# function(res, req, a, b) {
 #     as.numeric(a) + as.numeric(b)
 # }
-# 
+#
 # # Programmatically alter your API
 # #* @plumber
-# function(pr) {
+# function(res, req, pr) {
 #     pr %>%
 #         # Overwrite the default serializer to return unboxed JSON
 #         pr_set_serializer(serializer_unboxed_json())
