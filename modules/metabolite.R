@@ -1,4 +1,13 @@
-metabolites_query <- function(enzyme, level, epa_id){
+metabolites_query <- function(epa_id, enzyme="both", level=3){
+    
+    if(level < 1 | level > 3){
+        return("Error: level must be 1, 2, or 3.")
+    }
+    
+    if(!enzyme %in% c("cyp", "ugt", "both")){
+        return("Error: unknown enzyme specified.")
+    }
+    
     metabolite_identifier <- "metalev"
     if(enzyme == "ugt") {
         metabolite_identifier <- "ugtlevel"
@@ -15,7 +24,6 @@ metabolites_query <- function(enzyme, level, epa_id){
             ", if(level == 1){paste0("mlcs.base_smi AS parent_smi_id, 0 AS parent_level")}, "
             ", if(level == 2){paste0("mlcs.level1_smi AS parent_smi_id, mlcs.level1_id AS parent_level")}, "
             ", if(level == 3){paste0("mlcs.level2_smi AS parent_smi_id, mlcs.level2_id AS parent_level")}, "
-            ", if(level == 4){paste0("mlcs.level3_smi AS parent_smi_id, mlcs.level3_id AS parent_level")}, "
             ,
             mlcs.", if(enzyme=="cyp"){paste0("level", level, "_smi")} else {paste0("ugt", level, "_smi")}, " AS child_smi_id,
             mlcs.", if(enzyme=="cyp"){paste0("level", level, "_id")} else {paste0("ugt_id")}, " AS child_level,

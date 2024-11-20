@@ -6,16 +6,12 @@
 #
 #    https://www.rplumber.io/
 #
-
+library(connectapi)
 library(plumber)
 library(bit64)
 library(data.table)
 library(DBI)
 library(dplyr)
-library(DT)
-library(heatmap3)
-library(heatmaply)
-library(htmlwidgets)
 library(httr)
 library(jsonlite)
 library(openssl)
@@ -24,12 +20,6 @@ library(plotly)
 library(pool)
 library(reshape2)
 library(rsvg)
-library(shiny)
-library(shinycssloaders)
-library(shinydashboard)
-library(shinydashboardPlus)
-library(shinyjs)
-library(shinyWidgets)
 library(sortable)
 library(stringi)
 library(stringr)
@@ -56,23 +46,26 @@ source("modules/postgres.R")
 #* @apiVersion 0.1.0
 
 
-# # Check authentication for
-# #* @filter checkAuth
-# function(res, req, req, res){
-#
-#     print("===req")
-#     print(req$cookies)
-#
-#     print(names(req))
-#
-#     print("===res")
-#     print(res)
-#
-#     if (is.null(req$username)){
-#         res$status <- 401 # Unauthorized
-#         return(list(error="Authentication required"))
+# Authentication Check - from https://docs.posit.co/connect/user/plumber/
+# Returns a list containing "user" and "groups" information 
+# populated by incoming request data.
+getUserMetadata <- function(req) {
+    rawUserData <- req[["HTTP_RSTUDIO_CONNECT_CREDENTIALS"]]
+    if (!is.null(rawUserData)) {
+        jsonlite::fromJSON(rawUserData)
+    } else {
+        list()
+    }
+}
+
+# #* @get /hello
+# function(req, res){
+#     user <- getUserMetadata(req)
+#     username <- user[["user"]]
+#     if (!is.null(username)) {
+#         return(list(message = paste0("So nice to see you, ", username, ".")))
 #     } else {
-#         plumber::forward()
+#         return(list(message = paste0("Howdy, stranger.")))
 #     }
 # }
 
@@ -373,6 +366,189 @@ function(res, req, dtxsid = "") {
         AND bc.epa_id = bpc.epa_id
     "), args=as.list(dtxsid))
 }
+
+
+
+#* Given a DSSTox substance ID and fingerprint type, return a list of structurally similar chemicals. Supported fingerprint types are: "atompair", "avalon", "maccskeys", "morgan", "rdkit", "rdklayered", "rdkpattern", "topologicaltorsion"
+#* @param smiles SMILES string
+#* @param fp Fingerprint type. Supported fingerprint types are: "atompair", "avalon", "maccskeys", "morgan", "rdkit", "rdklayered", "rdkpattern", "topologicaltorsion". Default "morgan"
+#* @param threshold Similarity threshold for chemicals to return. Only chemicals with at least this level of structural similarity will be returned. Default 0.5.
+#* @get /similarity/structural
+#* @tag "Similarity Lookup"
+function(res, req, smiles="", fp="morgan", threshold=0.5) {
+    fp_types <- c("atompair", "avalon", "maccskeys", "morgan", "rdkit", "rdklayered", "rdkpattern", "topologicaltorsion")
+    if(!(fp %in% fp_types)){
+        return("Error: invalid fingerprint type provided.")
+    }
+
+    # Get internal IDs for given chemical
+    internal_id <- run_query(paste0("
+        SELECT DISTINCT
+            bc.dsstox_substance_id,
+            bcc.preferred_name,
+            sim.similarity
+        FROM
+            base_chemicals bc,
+            base_chemical_compounds bcc,
+            base_chemical_to_smiles bcs,
+            get_", fp, "_fp_neighbors($1) sim
+        WHERE
+            sim.smi_id = bcs.smi_id
+            AND bc.epa_id = bcc.epa_id
+            AND bcs.epa_id = bc.epa_id
+            AND sim.similarity >= $2
+        ORDER BY sim.similarity DESC
+    "), args=list(smiles, threshold))
+}
+
+#* Given a DSSTox substance ID and fingerprint type, return a list of structurally similar chemicals. Supported fingerprint types are: "admet", "leadscope", "pass"
+#* @param dtxsid DSSTox Substance ID for chemical
+#* @param fp Fingerprint type. Supported fingerprint types are: "admet", "leadscope", "pass"
+#* @param metric Distance metric to use in similarity calculations. Only cosine is supported currently.
+#* @param threshold Similarity threshold for chemicals to return. Only chemicals with at least this level of functional similarity will be returned. Closer to 0 = greater similarity. Default 0.1.
+#* @param n maximum number of similar chemicals to return. Recommended 10.
+#* @get /similarity/functional
+#* @tag "Similarity Lookup"
+function(res, req, dtxsid="", fp="leadscope", metric="cosine", threshold=0.1, n=10) {
+    
+    username <- getUserMetadata(req)[["user"]]
+    if (!is.null(username)) {
+        
+        fp_types <- c("admet", "leadscope", "pass")
+        if(!(fp %in% fp_types)){
+            return("Error: invalid fingerprint type provided.")
+        }
+        
+        sim <- data.frame()
+        
+        if(fp == "admet"){
+            
+            sim <- run_query(paste0("
+                SELECT DISTINCT
+                    bsch.dsstox_substance_id,
+                    bcmd.preferred_name,
+                    res.dsstox_substance_id AS similar_dsstox_substance_id,
+                    res.preferred_name AS similar_preferred_name,
+                    res.smi_id,
+                    res.functional_similarity
+                FROM
+                    base_chemicals bsch,
+                    base_chemical_compounds bcmd,
+                    base_chemical_to_smiles bcsm,
+                    smiles_strings smst,
+                    admet_chemical_predictions_vector_v11 acpv,
+                    lateral (
+                        SELECT
+                            d.dsstox_substance_id,
+                            e.preferred_name,
+                            a.smi_id,
+                            a.functional_similarity
+                        FROM
+                            get_functional_cosine_cutoff_v11(acpv.admet_prediction_results, $1) a,
+                            smiles_strings b,
+                            base_chemical_to_smiles c,
+                            base_chemicals d,
+                            base_chemical_compounds e
+                        WHERE
+                            a.smi_id = b.smi_id
+                        AND c.smi_id = b.smi_id
+                        AND c.epa_id = d.epa_id
+                        AND e.epa_id = d.epa_id
+                        AND c.cmpd_id = e.cmpd_id
+                    ) AS res
+                WHERE
+                    bcmd.epa_id = bsch.epa_id
+                AND bcsm.cmpd_id = bcmd.cmpd_id
+                AND bcsm.epa_id = bsch.epa_id
+                AND bcsm.smi_id = smst.smi_id
+                AND acpv.smi_id = smst.smi_id
+                AND bsch.dsstox_substance_id = $2
+                ORDER BY res.functional_similarity
+                LIMIT $3
+            "), args=list(threshold, dtxsid, n))
+            
+        }
+        
+        else if(fp == "leadscope"){
+            sim <- run_query(paste0("
+                SELECT distinct
+                    bsch.dsstox_substance_id,
+                    bcmd.preferred_name,
+                    res.dsstox_substance_id AS similar_dsstox_substance_id,
+                    res.preferred_name AS similar_preferred_name,
+                    res.functional_similarity
+                FROM
+                    base_chemicals bsch,
+                    base_chemical_compounds bcmd,
+                    leadscope_chemical_predictions_vector lsfv,
+                    lateral (
+                        SELECT
+                            a.dsstox_substance_id,
+                            c.preferred_name,
+                            a.functional_similarity
+                        FROM
+                            get_functional_cosine_cutoff_leads(lsfv.leadscope_prediction_results, $1) a,
+                            base_chemicals b,
+                            base_chemical_compounds c
+                        WHERE
+                            a.dsstox_substance_id = b.dsstox_substance_id
+                        and b.epa_id = c.epa_id
+                    ) AS res
+                WHERE bcmd.epa_id = bsch.epa_id
+                AND lsfv.dsstox_substance_id = bsch.dsstox_substance_id
+                AND bsch.dsstox_substance_id = $2
+                ORDER BY res.functional_similarity
+                LIMIT $3
+            "), args=list(threshold, dtxsid, n))
+        }
+        
+        else if(fp == "pass"){
+            sim <- run_query(paste0("
+                SELECT DISTINCT
+                    bsch.dsstox_substance_id,
+                    bcmd.preferred_name,
+                    res.dsstox_substance_id AS similar_dsstox_substance_id,
+                    res.preferred_name AS similar_preferred_name,
+                    res.functional_similarity
+                FROM
+                    base_chemicals bsch,
+                    base_chemical_compounds bcmd,
+                    pass_chemical_predictions_vector psfv,
+                    lateral (
+                        SELECT
+                            b.dsstox_substance_id,
+                            c.preferred_name,
+                            a.functional_similarity
+                        FROM
+                            get_functional_cosine_cutoff_pass(psfv.pass_prediction_results, $1) a,
+                            base_chemicals b,
+                            base_chemical_compounds c
+                        WHERE
+                            a.dsstox_compound_id = c.dsstox_compound_id
+                        AND b.epa_id = c.epa_id
+                    ) AS res
+                WHERE
+                    bcmd.epa_id = bsch.epa_id
+                AND psfv.dsstox_compound_id = bcmd.dsstox_compound_id
+                AND bsch.dsstox_substance_id = $2
+                ORDER BY res.functional_similarity
+                LIMIT $3
+            "), args=list(threshold, dtxsid, n))
+        } 
+        
+        
+        if(nrow(sim) > 0){
+            return(sim)
+        }
+        return("No results found.")
+    }
+    res$body <- "Unauthorized: this endpoint is only available to internal NIEHS users. Please log in with your credentials and try again."
+    res$status <- 401
+    return()
+}
+
+
+
 
 
 #* Given a DSSTox substance ID, return a chemical binary vector fingerprint generated with RDKit. Supported types are: "atompair", "avalon", "maccskeys", "morgan", "rdkit", "rdklayer", "rdkpattern", "topologicaltorsion", default is "rdkit".
@@ -1345,40 +1521,34 @@ function(res, req, dtxsid = "") {
 #* @tag "Predictive Models"
 #* @tag "Environmental Fate and Exposure Annotations"
 function(res, req, dtxsid = "", positives = FALSE) {
-
-    print("===req===")
-    print(req)
-
-    # TODO: better checking for auth
-    auth <- FALSE
-    if(auth == FALSE){
-        return("Error: this endpoint is only available to internal NIEHS users. Please log in with your credentials and try again.")
-    }
-
-    # Get internal IDs for given chemical
-    internal_id <- run_query(paste0("
-        SELECT DISTINCT
-            bc.epa_id,
-            bc.dsstox_substance_id
-        FROM
-            base_chemicals bc
-        WHERE
-            bc.dsstox_substance_id = $1
-    "), args=as.list(dtxsid))
-
-    if(nrow(internal_id) > 0){
-        input_all_annotations <- list(
-            "switch__leadscope"
-        )
-        annotations <- chemical_annotations(selected=as.integer(internal_id$epa_id), input=input_all_annotations, selected_node=1, dtxsids=internal_id$dsstox_substance_id, switch_mode="")[["anno_leadscope"]]
-        if(as.booltype(positives) == TRUE){
-            annotations <- annotations %>% filter(interpretation == 1)
-            #print(annotations %>% filter(interpretation == 1))
+    username <- getUserMetadata(req)[["user"]]
+    if (!is.null(username)) {
+        # Get internal IDs for given chemical
+        internal_id <- run_query(paste0("
+            SELECT DISTINCT
+                bc.epa_id,
+                bc.dsstox_substance_id
+            FROM
+                base_chemicals bc
+            WHERE
+                bc.dsstox_substance_id = $1
+        "), args=as.list(dtxsid))
+    
+        if(nrow(internal_id) > 0){
+            input_all_annotations <- list(
+                "switch__leadscope"
+            )
+            annotations <- chemical_annotations(selected=as.integer(internal_id$epa_id), input=input_all_annotations, selected_node=1, dtxsids=internal_id$dsstox_substance_id, switch_mode="")[["anno_leadscope"]]
+            if(as.booltype(positives) == TRUE){
+                annotations <- annotations %>% filter(interpretation == "in domain, active")
+            }
+            return(annotations)
         }
-
-        return(annotations)
-
+        return("No results found.")
     }
+    res$body <- "Unauthorized: this endpoint is only available to internal NIEHS users. Please log in with your credentials and try again."
+    res$status <- 401
+    return()
 }
 
 #* Given a DSSTox substance ID, annotate using predictive models from ADMET Predictor available in CBT.
@@ -1389,82 +1559,40 @@ function(res, req, dtxsid = "", positives = FALSE) {
 #* @tag "Environmental Fate and Exposure Annotations"
 #* @tag "Transporter and Pathway Annotations"
 function(res, req, dtxsid = "", positives = FALSE) {
+    username <- getUserMetadata(req)[["user"]]
+    if (!is.null(username)) {
 
-    # TODO: better checking for auth
-    auth <- FALSE
-    if(auth == FALSE){
-        return("Error: this endpoint is only available to internal NIEHS users. Please log in with your credentials and try again.")
-    }
-
-
-    # Get internal IDs for given chemical
-    internal_id <- run_query(paste0("
-        SELECT DISTINCT
-            bc.epa_id,
-            bc.dsstox_substance_id
-        FROM
-            base_chemicals bc
-        WHERE
-            bc.dsstox_substance_id = $1
-    "), args=as.list(dtxsid))
-
-    if(nrow(internal_id) > 0){
-
-        input_all_annotations <- list(
-            "switch__admet_binr"=TRUE,
-            "switch__chembl"=FALSE,
-            "switch__cpd"=FALSE,
-            "switch__ctd_bioprocess"=FALSE,
-            "switch__ctd_cellcomp"=FALSE,
-            "switch__ctd_diseases"=FALSE,
-            "switch__ctd_genes"=FALSE,
-            "switch__ctd_molfunct"=FALSE,
-            "switch__ctd_phenotypes"=FALSE,
-            "switch__drugbank_atccodes"=FALSE,
-            "switch__drugbank_carriers"=FALSE,
-            "switch__drugbank_enzymes"=FALSE,
-            "switch__drugbank_targets"=FALSE,
-            "switch__drugbank_transporters"=FALSE,
-            "switch__hmdb_biospecimenlocations"=FALSE,
-            "switch__hmdb_cellularlocations"=FALSE,
-            "switch__hmdb_diseases"=FALSE,
-            "switch__hmdb_genes"=FALSE,
-            "switch__hmdb_tissuelocations"=FALSE,
-            "switch__ice"=FALSE,
-            "switch__invitrodb"=FALSE,
-            "switch__leadscope"=FALSE,
-            "switch__ochem"=FALSE,
-            "switch__opera_adme"=FALSE,
-            "switch__opera_environmental_fate"=FALSE,
-            "switch__opera_physicochem"=FALSE,
-            "switch__opera_structural_properties"=FALSE,
-            "switch__opera_toxicology_endpoints"=FALSE,
-            "switch__saagar"=FALSE,
-            "switch__t3db"=FALSE,
-            "switch__toxrefdb_neoplastic"=FALSE,
-            "switch__toxrefdb_nonneoplastic"=FALSE,
-            "switch__pubchem"=FALSE,
-            "switch__pubchem_props"=FALSE,
-            "switch__gras"=FALSE,
-            "switch__foodb_enzymes"=FALSE,
-            "switch__foodb_flavors"=FALSE,
-            "switch__foodb_foodcontent"=FALSE,
-            "switch__foodb_healtheffects"=FALSE,
-            "switch__foodb_ontology"=FALSE,
-            "switch__epa_props"=FALSE
-        )
-        annotations <- chemical_annotations(selected=as.integer(internal_id$epa_id), input=input_all_annotations, selected_node=1, dtxsids=internal_id$dsstox_substance_id, switch_mode="")
-
-        annotations <- annotations[["anno_admet_binr"]]
-
-        if(as.booltype(positives) == TRUE){
-            annotations <- annotations %>% filter(interpretation == 1)
-            #print(annotations %>% filter(interpretation == 1))
+        # Get internal IDs for given chemical
+        internal_id <- run_query(paste0("
+            SELECT DISTINCT
+                bc.epa_id,
+                bc.dsstox_substance_id
+            FROM
+                base_chemicals bc
+            WHERE
+                bc.dsstox_substance_id = $1
+        "), args=as.list(dtxsid))
+    
+        if(nrow(internal_id) > 0){
+    
+            input_all_annotations <- list(
+                "switch__admet_binr"
+            )
+            annotations <- chemical_annotations(selected=as.integer(internal_id$epa_id), input=input_all_annotations, selected_node=1, dtxsids=internal_id$dsstox_substance_id, switch_mode="")
+    
+            annotations <- annotations[["anno_admet_binr"]]
+    
+            if(as.booltype(positives) == TRUE){
+                annotations <- annotations %>% filter(interpretation == "in domain, active")
+            }
+    
+            return(annotations)
         }
-
-        return(annotations)
-
+        return("No results found.")
     }
+    res$body <- "Unauthorized: this endpoint is only available to internal NIEHS users. Please log in with your credentials and try again."
+    res$status <- 401
+    return()
 }
 
 #* Given a DSSTox substance ID, annotate using the DrugBank database available in CBT. Contains information regarding a chemical's usage in drugs and their targets.
@@ -1639,44 +1767,44 @@ function(res, req, dtxsid = "") {
 #* @tag "Predictive Models"
 #* @tag "Transporter and Pathway Annotations"
 function(res, req, dtxsid = "", enzyme = "", maxlevel = 1) {
-
-    # TODO: better checking for auth
-    auth <- FALSE
-    if(auth == FALSE){
-        return("Error: this endpoint is only available to internal NIEHS users. Please log in with your credentials and try again.")
-    }
-
-    # Get internal IDs for given chemical
-    internal_id <- run_query(paste0("
-        SELECT DISTINCT
-            bc.epa_id,
-            bc.dsstox_substance_id
-        FROM
-            base_chemicals bc
-        WHERE
-            bc.dsstox_substance_id = $1
-    "), args=as.list(dtxsid))
-
-    if(nrow(internal_id) > 0){
-        metabolites_full <- list()
-        if(enzyme == "both"){
-            metabolites_full_cyp <- lapply(seq_len(maxlevel), function(res, req, x){
-                metabolites <- metabolites_query("cyp", x, as.integer(internal_id$epa_id))
-            })
-            metabolites_full_cyp <- rbindlist(metabolites_full_cyp)
-            metabolites_full_ugt <- lapply(seq_len(maxlevel), function(res, req, x){
-                metabolites <- metabolites_query("ugt", x, as.integer(internal_id$epa_id))
-            })
-            metabolites_full_ugt <- rbindlist(metabolites_full_ugt)
-            metabolites_full <- list(metabolites_full_cyp, metabolites_full_ugt)
-        } else {
-            metabolites_full <- lapply(seq_len(maxlevel), function(res, req, x){
-                metabolites <- metabolites_query(enzyme, x, as.integer(internal_id$epa_id))
-            })
+    username <- getUserMetadata(req)[["user"]]
+    if (!is.null(username)) {
+        # Get internal IDs for given chemical
+        internal_id <- run_query(paste0("
+            SELECT DISTINCT
+                bc.epa_id,
+                bc.dsstox_substance_id
+            FROM
+                base_chemicals bc
+            WHERE
+                bc.dsstox_substance_id = $1
+        "), args=as.list(dtxsid))
+    
+        if(nrow(internal_id) > 0){
+            metabolites_full <- list()
+            if(enzyme == "both"){
+                metabolites_full_cyp <- lapply(seq_len(maxlevel), function(x){
+                    metabolites <- metabolites_query(as.integer(internal_id$epa_id), "cyp", x)
+                })
+                metabolites_full_cyp <- rbindlist(metabolites_full_cyp)
+                metabolites_full_ugt <- lapply(seq_len(maxlevel), function(x){
+                    metabolites <- metabolites_query(as.integer(internal_id$epa_id), "ugt", x)
+                })
+                metabolites_full_ugt <- rbindlist(metabolites_full_ugt)
+                metabolites_full <- list(metabolites_full_cyp, metabolites_full_ugt)
+            } else {
+                metabolites_full <- lapply(seq_len(maxlevel), function(x){
+                    metabolites <- metabolites_query(as.integer(internal_id$epa_id), enzyme, x)
+                })
+            }
+            metabolites_full <- rbindlist(metabolites_full, fill=TRUE)
+            return(metabolites_full)
         }
-        metabolites_full <- rbindlist(metabolites_full, fill=TRUE)
-        return(metabolites_full)
+        return("No results found.")
     }
+    res$body <- "Unauthorized: this endpoint is only available to internal NIEHS users. Please log in with your credentials and try again."
+    res$status <- 401
+    return()
 }
 
 #* Given a SMILES string, check for (OChem, ChEMBL, Saagar) structural alerts and notable substructures.
@@ -1912,29 +2040,3 @@ function(res, req, dtxsid = "") {
     "), args=as.list(dtxsid))
     return(sfund)
 }
-
-
-
-# #* Plot a histogram
-# #* @serializer png
-# #* @get /plot
-# function(res, req, ) {
-#     rand <- rnorm(100)
-#     hist(rand)
-# }
-#
-# #* Return the sum of two numbers
-# #* @param a The first number to add
-# #* @param b The second number to add
-# #* @post /sum
-# function(res, req, a, b) {
-#     as.numeric(a) + as.numeric(b)
-# }
-#
-# # Programmatically alter your API
-# #* @plumber
-# function(res, req, pr) {
-#     pr %>%
-#         # Overwrite the default serializer to return unboxed JSON
-#         pr_set_serializer(serializer_unboxed_json())
-# }

@@ -43,6 +43,15 @@ pool_main <- dbPool(
     password=DB_PASS
 )
 
+pool_vec <- dbPool(
+    drv=pgdrv,
+    dbname="chembiotox_vectors_v1",
+    host=DB_HOST,
+    port=DB_PORT,
+    user=DB_USER,
+    password=DB_PASS
+)
+
 pool_chembl <- dbPool(
     drv=pgdrv,
     dbname="chembl_34",
@@ -53,46 +62,34 @@ pool_chembl <- dbPool(
 )
 
 run_query <- function(query="", args=list()){
-    
-    # if(closepool == TRUE){
-    #     pool_sub <- dbPool(
-    #         drv=pgdrv,
-    #         dbname="chembiotox_v2",
-    #         host=DB_HOST,
-    #         port=DB_PORT,
-    #         user=DB_USER,
-    #         password=DB_PASS
-    #     )
-    #     
-    #     df <- data.frame()
-    #     conn <- NULL
-    #     try_query <- tryCatch({ # Attempt to query db
-    #         # Checkout connection from db pool
-    #         conn <- localCheckout(pool_sub)
-    #         
-    #         res <- dbSendQuery(conn, query)
-    #         if(length(args) > 0){
-    #             dbBind(res, args)
-    #         }
-    #         df <- dbFetch(res)
-    #         dbClearResult(res)
-    #     }, error=function(cond){
-    #         print("Error in query")
-    #         print(cond)
-    #     })
-    #     poolClose(pool_sub) # So we don't use up all the DB connections!
-    #     
-    #     resp <- data.frame()
-    #     if(nrow(df) > 0){
-    #         resp <- df
-    #     }
-    #     return(resp)
-    # }
-    # 
     df <- data.frame()
     try_query <- tryCatch({ # Attempt to query db
         # Checkout connection from db pool
         conn <- localCheckout(pool_main)
+        
+        res <- dbSendQuery(conn, query)
+        if(length(args) > 0){
+            dbBind(res, args)
+        }
+        df <- dbFetch(res)
+        dbClearResult(res)
+    }, error=function(cond){
+        print("Error in query")
+        print(cond)
+    })
+    
+    resp <- data.frame()
+    if(nrow(df) > 0){
+        resp <- df
+    }
+    return(resp)
+}
+
+run_query_vec <- function(query="", args=list()){
+    df <- data.frame()
+    try_query <- tryCatch({ # Attempt to query db
+        # Checkout connection from db pool
+        conn <- localCheckout(pool_vec)
         
         res <- dbSendQuery(conn, query)
         if(length(args) > 0){

@@ -97,11 +97,10 @@ get_chemical_availability <- function(epa_ids){
 
 # Load chemical annotations for a given cluster
 chemical_annotations <- function(selected, input, selected_node, dtxsids, switch_mode=""){
-
-    print("===input===")
-    print(input)
-    
     input_all_annotations <- list(
+        "switch__admet_binr",
+        "switch__admet_catg",
+        "switch__admet_cont",
         "switch__chembl",
         "switch__cpd",
         "switch__ctd_bioprocess",
@@ -152,9 +151,6 @@ chemical_annotations <- function(selected, input, selected_node, dtxsids, switch
     })
     names(input) <- input_all_annotations
 
-    print("===input===")
-    print(input)
-    
     
     anno_admet_binr <- data.frame(matrix(ncol=3, nrow=0))
     colnames(anno_admet_binr) <- c("model_name", "interpretation", "description")
@@ -268,79 +264,81 @@ chemical_annotations <- function(selected, input, selected_node, dtxsids, switch
     colnames(anno_epa_props) <- c("smi_id", "annotation")
 
     # ADMET
-    # if(input[[paste0("switch__admet_binr", switch_mode)]] == TRUE){
-    #     anno_admet_binr_plot <- run_query(paste0("
-    #                     SELECT DISTINCT
-    #                         bc.dsstox_substance_id,
-    #                         abcp.model_results
-    #                     FROM
-    #                         base_chemical_to_smiles bcs,
-    #                         base_chemicals bc,
-    #                         admet_base_chemical_predictions_interpretation_binary_v11_json abcp
-    #                     WHERE
-    #                         bcs.epa_id IN (", paste0(lapply(seq_len(length(selected)), function(x) paste0("$", x)), collapse=", "), ")
-    #                     AND bcs.epa_id = bc.epa_id
-    #                     AND bcs.smi_id = abcp.smi_id
-    #                 "), args=as.list(selected))
-    #     anno_admet_binr_plot_rows <- lapply(anno_admet_binr_plot$model_results, function(x){
-    #         fromJSON(x)
-    #     })
-    #     anno_admet_binr_plot_rows <- rbindlist(anno_admet_binr_plot_rows) %>% mutate_if(is.character, as.numeric)
-    #     anno_admet_binr_plot_rows <- cbind(anno_admet_binr_plot$dsstox_substance_id, anno_admet_binr_plot_rows)
-    #     colnames(anno_admet_binr_plot_rows)[1] <- "dsstox_substance_id"
-    #     #anno_admet_binr_hm <- annotation_heatmap(anno_admet_binr_plot_rows)
-    # }
-    # 
-    # if(input[[paste0("switch__admet_catg", switch_mode)]] == TRUE){
-    #     anno_admet_catg_plot <- run_query(paste0("
-    #                     SELECT DISTINCT
-    #                         bc.dsstox_substance_id,
-    #                         abcp.model_results
-    #                     FROM
-    #                         base_chemical_to_smiles bcs,
-    #                         base_chemicals bc,
-    #                         admet_base_chemical_predictions_interpretation_catego_v11_json abcp
-    #                     WHERE
-    #                         bcs.epa_id IN (", paste0(lapply(seq_len(length(selected)), function(x) paste0("$", x)), collapse=", "), ")
-    #                     AND bcs.epa_id = bc.epa_id
-    #                     AND bcs.smi_id = abcp.smi_id
-    #                 "), args=as.list(selected))
-    #     anno_admet_catg_plot_rows <- lapply(anno_admet_catg_plot$model_results, function(x){
-    #         fromJSON(x)
-    #     })
-    #     anno_admet_catg_plot_rows <- rbindlist(anno_admet_catg_plot_rows) %>% mutate_if(is.character, as.numeric)
-    #     anno_admet_catg_plot_rows <- cbind(anno_admet_catg_plot$dsstox_substance_id, anno_admet_catg_plot_rows)
-    #     colnames(anno_admet_catg_plot_rows)[1] <- "dsstox_substance_id"
-    #     
-    #     #n_electr messes up scale
-    #     #anno_admet_catg_plot_rows$N_Electr <- NULL
-    #     
-    #     #anno_admet_catg_hm <- annotation_heatmap(anno_admet_catg_plot_rows)
-    # }
-    # 
-    # if(input[[paste0("switch__admet_cont", switch_mode)]] == TRUE){
-    #     anno_admet_cont_plot <- run_query(paste0("
-    #                     SELECT DISTINCT
-    #                         bc.dsstox_substance_id,
-    #                         abcp.model_results
-    #                     FROM
-    #                         base_chemical_to_smiles bcs,
-    #                         base_chemicals bc,
-    #                         admet_base_chemical_predictions_interpretation_contin_v11_json abcp
-    #                     WHERE
-    #                         bcs.epa_id IN (", paste0(lapply(seq_len(length(selected)), function(x) paste0("$", x)), collapse=", "), ")
-    #                     AND bcs.epa_id = bc.epa_id
-    #                     AND bcs.smi_id = abcp.smi_id
-    #                 "), args=as.list(selected))
-    #     anno_admet_cont_plot_rows <- lapply(anno_admet_cont_plot$model_results, function(x){
-    #         fromJSON(x)
-    #     })
-    #     anno_admet_cont_plot_rows <- rbindlist(anno_admet_cont_plot_rows) %>% mutate_if(is.character, as.numeric)
-    #     anno_admet_cont_plot_rows <- cbind(anno_admet_cont_plot$dsstox_substance_id, anno_admet_cont_plot_rows)
-    #     colnames(anno_admet_cont_plot_rows)[1] <- "dsstox_substance_id"
-    #     anno_admet_cont_plot_rows <- anno_admet_cont_plot_rows %>% select_if(~ !any(is.na(.)))
-    #     #anno_admet_cont_hm <- annotation_heatmap(anno_admet_cont_plot_rows)
-    # }
+    if(input[[paste0("switch__admet_binr", switch_mode)]] == TRUE){
+        anno_admet_binr <- run_query(paste0("
+                        SELECT DISTINCT
+                            bc.dsstox_substance_id,
+                            abcp.model_results
+                        FROM
+                            base_chemical_to_smiles bcs,
+                            base_chemicals bc,
+                            admet_base_chemical_predictions_interpretation_binary_v11_json abcp
+                        WHERE
+                            bcs.epa_id IN (", paste0(lapply(seq_len(length(selected)), function(x) paste0("$", x)), collapse=", "), ")
+                        AND bcs.epa_id = bc.epa_id
+                        AND bcs.smi_id = abcp.smi_id
+                    "), args=as.list(selected))
+        anno_admet_binr <- fromJSON(anno_admet_binr$model_results[1])
+        
+        anno_admet_binr <- lapply(anno_admet_binr, function(x){
+            if(as.numeric(x) == 0) return("in domain, inactive")
+            else if(as.numeric(x) == 1) return("in domain, active")
+            return("out of domain")
+        })
+        
+        anno_admet_binr <- data.frame(model_name=names(anno_admet_binr), interpretation=unname(unlist(anno_admet_binr)))
+    }
+
+    if(input[[paste0("switch__admet_catg", switch_mode)]] == TRUE){
+        anno_admet_catg_plot <- run_query(paste0("
+                        SELECT DISTINCT
+                            bc.dsstox_substance_id,
+                            abcp.model_results
+                        FROM
+                            base_chemical_to_smiles bcs,
+                            base_chemicals bc,
+                            admet_base_chemical_predictions_interpretation_catego_v11_json abcp
+                        WHERE
+                            bcs.epa_id IN (", paste0(lapply(seq_len(length(selected)), function(x) paste0("$", x)), collapse=", "), ")
+                        AND bcs.epa_id = bc.epa_id
+                        AND bcs.smi_id = abcp.smi_id
+                    "), args=as.list(selected))
+        anno_admet_catg_plot_rows <- lapply(anno_admet_catg_plot$model_results, function(x){
+            fromJSON(x)
+        })
+        anno_admet_catg_plot_rows <- rbindlist(anno_admet_catg_plot_rows) %>% mutate_if(is.character, as.numeric)
+        anno_admet_catg_plot_rows <- cbind(anno_admet_catg_plot$dsstox_substance_id, anno_admet_catg_plot_rows)
+        colnames(anno_admet_catg_plot_rows)[1] <- "dsstox_substance_id"
+
+        #n_electr messes up scale
+        #anno_admet_catg_plot_rows$N_Electr <- NULL
+
+        #anno_admet_catg_hm <- annotation_heatmap(anno_admet_catg_plot_rows)
+    }
+
+    if(input[[paste0("switch__admet_cont", switch_mode)]] == TRUE){
+        anno_admet_cont_plot <- run_query(paste0("
+                        SELECT DISTINCT
+                            bc.dsstox_substance_id,
+                            abcp.model_results
+                        FROM
+                            base_chemical_to_smiles bcs,
+                            base_chemicals bc,
+                            admet_base_chemical_predictions_interpretation_contin_v11_json abcp
+                        WHERE
+                            bcs.epa_id IN (", paste0(lapply(seq_len(length(selected)), function(x) paste0("$", x)), collapse=", "), ")
+                        AND bcs.epa_id = bc.epa_id
+                        AND bcs.smi_id = abcp.smi_id
+                    "), args=as.list(selected))
+        anno_admet_cont_plot_rows <- lapply(anno_admet_cont_plot$model_results, function(x){
+            fromJSON(x)
+        })
+        anno_admet_cont_plot_rows <- rbindlist(anno_admet_cont_plot_rows) %>% mutate_if(is.character, as.numeric)
+        anno_admet_cont_plot_rows <- cbind(anno_admet_cont_plot$dsstox_substance_id, anno_admet_cont_plot_rows)
+        colnames(anno_admet_cont_plot_rows)[1] <- "dsstox_substance_id"
+        anno_admet_cont_plot_rows <- anno_admet_cont_plot_rows %>% select_if(~ !any(is.na(.)))
+        #anno_admet_cont_hm <- annotation_heatmap(anno_admet_cont_plot_rows)
+    }
     
     # ChEMBL
     if(input[[paste0("switch__chembl", switch_mode)]] == TRUE){
@@ -746,22 +744,24 @@ chemical_annotations <- function(selected, input, selected_node, dtxsids, switch
                 bc.dsstox_substance_id,
                 isr.invitrodb_values AS assay_name,
                 iaea.assay_endpoint_attribute,
-                iaea.assay_endpoint_value
+                iaea.assay_endpoint_value,
+                x.invitrodb_values AS hit_call
             FROM
                 invitrodb_summarized_results isr,
                 invitrodb_annotation ia,
                 invitrodb_assay_endpoint_annotation iaea,
                 base_chemicals bc,
                 base_chemical_to_smiles bcs,
-                base_chemical_compounds bcc
+                base_chemical_compounds bcc,
+                (SELECT i.row_index, i.invitrodb_attributes, i.invitrodb_values FROM invitrodb_summarized_results i WHERE i.invitrodb_attributes='hitc') AS x
             WHERE
                 bc.epa_id = bcs.epa_id
             AND bc.epa_id IN (", paste0(lapply(seq_len(length(selected)), function(x) paste0("$", x)), collapse=", "), ")
             AND bc.epa_id = bcc.epa_id
             AND bcs.smi_id = isr.smi_id
             AND isr.invitrodb_attributes = ia.invitrodb_attributes
-            AND isr.invitrodb_attributes = 'aenm'
-            AND isr.invitrodb_values = iaea.aenm
+            AND (isr.invitrodb_attributes = 'aenm' AND isr.invitrodb_values = iaea.aenm)
+            AND isr.row_index = x.row_index
         "), args=as.list(selected))
     }
     
@@ -769,9 +769,9 @@ chemical_annotations <- function(selected, input, selected_node, dtxsids, switch
     if(input[[paste0("switch__leadscope", switch_mode)]] == TRUE){
         anno_leadscope <- run_query(paste0("
                         SELECT DISTINCT
-                            bcc.preferred_name,
-                            bcc.casrn,
-                            bc.dsstox_substance_id,
+                            --bcc.preferred_name,
+                            --bcc.casrn,
+                            --bc.dsstox_substance_id,
                             lpm.model_name,
                             lcpi.interpretation,
                             --lpm.short_description
@@ -791,6 +791,12 @@ chemical_annotations <- function(selected, input, selected_node, dtxsids, switch
                         AND lcpi.lmodel_id = lpm.lmodel_id
                         AND lcpi.lmodel_id = lqd.lmodel_id
                     "), args=as.list(selected))
+        # anno_admet_binr <- fromJSON(anno_admet_binr$model_results[1])
+        anno_leadscope$interpretation <- lapply(anno_leadscope$interpretation, function(x){
+            if(as.numeric(x) == 0) return("in domain, inactive")
+            else if(as.numeric(x) == 1) return("in domain, active")
+            return("out of domain")
+        })
     }
     
     # OChem
@@ -1204,7 +1210,9 @@ chemical_annotations <- function(selected, input, selected_node, dtxsids, switch
                             fcfc.kingdom,
                             fcfc.superclass,
                             fcfc.class,
-                            fcfc.subclass
+                            fcfc.subclass,
+                            fcfc.orig_content,
+                            fcfc.orig_unit
                         FROM
                             base_chemical_to_foodb_compound bcfc,
                             foodb_compound_food_content fcfc,
@@ -1214,6 +1222,7 @@ chemical_annotations <- function(selected, input, selected_node, dtxsids, switch
                             bcfc.epa_id = bc.epa_id
                         AND bcfc.foodb_compound_id = fcfc.compound_id
                         AND bcfc.epa_id = bcc.epa_id
+                        AND fcfc.orig_content > 0
                         AND bcfc.epa_id IN (
                             ", paste0(lapply(seq_len(length(selected)), function(x) paste0("$", x)), collapse=", "), ")
                     "), args=as.list(selected))
