@@ -58,19 +58,6 @@ getUserMetadata <- function(req) {
     }
 }
 
-# #* @get /hello
-# function(req, res){
-#     user <- getUserMetadata(req)
-#     username <- user[["user"]]
-#     if (!is.null(username)) {
-#         return(list(message = paste0("So nice to see you, ", username, ".")))
-#     } else {
-#         return(list(message = paste0("Howdy, stranger.")))
-#     }
-# }
-
-
-
 #* Get a list of all chemicals supported by ChemBioTox
 #* @get /lists/chemicals/chembiotox
 #* @tag "Lists"
@@ -410,19 +397,19 @@ function(res, req, smiles="", fp="morgan", threshold=0.5) {
 #* @get /similarity/functional
 #* @tag "Similarity Lookup"
 function(res, req, dtxsid="", fp="leadscope", metric="cosine", threshold=0.1, n=10) {
-    
+
     username <- getUserMetadata(req)[["user"]]
     if (!is.null(username)) {
-        
+
         fp_types <- c("admet", "leadscope", "pass")
         if(!(fp %in% fp_types)){
             return("Error: invalid fingerprint type provided.")
         }
-        
+
         sim <- data.frame()
-        
+
         if(fp == "admet"){
-            
+
             sim <- run_query(paste0("
                 SELECT DISTINCT
                     bsch.dsstox_substance_id,
@@ -466,9 +453,9 @@ function(res, req, dtxsid="", fp="leadscope", metric="cosine", threshold=0.1, n=
                 ORDER BY res.functional_similarity
                 LIMIT $3
             "), args=list(threshold, dtxsid, n))
-            
+
         }
-        
+
         else if(fp == "leadscope"){
             sim <- run_query(paste0("
                 SELECT distinct
@@ -501,7 +488,7 @@ function(res, req, dtxsid="", fp="leadscope", metric="cosine", threshold=0.1, n=
                 LIMIT $3
             "), args=list(threshold, dtxsid, n))
         }
-        
+
         else if(fp == "pass"){
             sim <- run_query(paste0("
                 SELECT DISTINCT
@@ -534,9 +521,9 @@ function(res, req, dtxsid="", fp="leadscope", metric="cosine", threshold=0.1, n=
                 ORDER BY res.functional_similarity
                 LIMIT $3
             "), args=list(threshold, dtxsid, n))
-        } 
-        
-        
+        }
+
+
         if(nrow(sim) > 0){
             return(sim)
         }
@@ -720,6 +707,41 @@ function(res, req, dtxsid = "") {
         )
         annotations <- chemical_annotations(selected=as.integer(internal_id$epa_id), input=input_all_annotations, selected_node=1, dtxsids=internal_id$dsstox_substance_id, switch_mode="")[["anno_cpd"]]
     }
+}
+
+
+#* Given a DSSTox substance ID, annotate using QSUR model predictions from the Chemical and Products Database (CPDat) available in CBT.
+#* @param dtxsid DSSTox substance ID
+#* @get /cpdat/qsur
+#* @tag "Commercial and Industrial Usage"
+#* @tag "Environmental Fate and Exposure Annotations"
+function(res, req, dtxsid = "") {
+    anno_cpd_qsur <- run_query(paste0("
+        SELECT DISTINCT
+            bcc.preferred_name,
+            bcc.casrn,
+            bc.dsstox_substance_id,
+            cqm.qsur_model,
+            cqm.qsur_description,
+            cqm.qsur_model_release,
+            bcq.qsur_values,
+            bcd.domain
+
+        FROM
+            base_chemicals bc,
+            base_chemical_compounds bcc,
+            base_chemical_qsur_predictions_2024 bcq,
+            base_chemical_qsur_domain_2024 bcd,
+            cpd_qsur_models cqm
+        WHERE
+            bc.dsstox_substance_id = $1
+        AND bc.epa_id = bcc.epa_id
+        AND bc.epa_id = bcq.epa_id
+        AND bcq.epa_id = bcd.epa_id
+        AND bcq.qsur_id = bcd.qsur_id
+        AND bcq.qsur_id = cqm.qsur_id
+    "), args=as.list(dtxsid))
+    return(anno_cpd_qsur)
 }
 
 
@@ -1533,7 +1555,7 @@ function(res, req, dtxsid = "", positives = FALSE) {
             WHERE
                 bc.dsstox_substance_id = $1
         "), args=as.list(dtxsid))
-    
+
         if(nrow(internal_id) > 0){
             input_all_annotations <- list(
                 "switch__leadscope"
@@ -1572,20 +1594,20 @@ function(res, req, dtxsid = "", positives = FALSE) {
             WHERE
                 bc.dsstox_substance_id = $1
         "), args=as.list(dtxsid))
-    
+
         if(nrow(internal_id) > 0){
-    
+
             input_all_annotations <- list(
                 "switch__admet_binr"
             )
             annotations <- chemical_annotations(selected=as.integer(internal_id$epa_id), input=input_all_annotations, selected_node=1, dtxsids=internal_id$dsstox_substance_id, switch_mode="")
-    
+
             annotations <- annotations[["anno_admet_binr"]]
-    
+
             if(as.booltype(positives) == TRUE){
                 annotations <- annotations %>% filter(interpretation == "in domain, active")
             }
-    
+
             return(annotations)
         }
         return("No results found.")
@@ -1779,7 +1801,7 @@ function(res, req, dtxsid = "", enzyme = "", maxlevel = 1) {
             WHERE
                 bc.dsstox_substance_id = $1
         "), args=as.list(dtxsid))
-    
+
         if(nrow(internal_id) > 0){
             metabolites_full <- list()
             if(enzyme == "both"){
@@ -1848,6 +1870,36 @@ function(res, req, smiles = "") {
     alerts <- rbindlist(list(alerts_ochem, alerts_chembl, alerts_saagar))
     return(alerts)
 }
+
+#* Given a DssTox Substance ID, check for ToxPrint structural alerts and notable substructures.
+#* @param dtxsid DSSTox Substance ID
+#* @get /alerts/toxprint
+#* @tag "Substructure Search"
+function(res, req, dtxsid = "") {
+    
+    # ToxPrint
+    alerts_toxprint <- run_query(paste0("
+        SELECT DISTINCT
+            ta.toxprint_alert,
+            'toxprint' AS source
+        FROM
+            base_chemical_toxprint_positives_2024 mv,
+            toxprint_alerts ta,
+            base_chemical_to_smiles bcs,
+            base_chemicals bc
+        WHERE
+            bc.epa_id = mv.epa_id
+        AND bc.dsstox_substance_id = $1
+        AND mv.toxpr_id = ta.toxpr_id
+        AND mv.toxprint_values = 1
+        
+    "), args=as.list(dtxsid))
+    
+    return(alerts_toxprint)
+}
+
+
+
 
 
 #* Given a DSSTox substance ID, annotate with chemical properties as detailed in PubChem that are available in CBT.
