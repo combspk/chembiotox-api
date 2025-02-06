@@ -404,7 +404,7 @@ function(res, req, smiles="", fp="morgan", threshold=0.5, n=10, exact=TRUE) {
 # #* @get /similarity/functional
 # #* @tag "Similarity Lookup"
 # function(res, req, dtxsid="", fp="leadscope", metric="cosine", threshold=0.1, n=10, exact=TRUE) {
-#     
+# 
 #     exact <- as.logical(exact) # have to do this because Swagger converts boolean to string for some reason
 # 
 #     username <- getUserMetadata(req)[["user"]]
@@ -414,20 +414,20 @@ function(res, req, smiles="", fp="morgan", threshold=0.5, n=10, exact=TRUE) {
 #         if(!(fp %in% fp_types)){
 #             return("Error: invalid fingerprint type provided.")
 #         }
-#         
+# 
 #         if(!(metric %in% c("cosine"))){
 #             return("Error: invalid metric type provided.")
 #         }
-#         
+# 
 #         func_input <- dtxsid
-#         
+# 
 #         fp_func <- "leadscope_chemical_predictions_vector"
 #         fp_func_func <- "get_functional_cosine_cutoff_leads"
-#         
+# 
 #         if(fp == "admet"){
 #             fp_func <- "admet_chemical_predictions_vector_v11"
 #             fp_func_func <- "get_functional_cosine_cutoff_v11"
-#             
+# 
 #             func_input <- run_query(paste0("
 #                         SELECT
 #                             b.smi_id
@@ -439,11 +439,11 @@ function(res, req, smiles="", fp="morgan", threshold=0.5, n=10, exact=TRUE) {
 #                         AND a.epa_id = b.epa_id
 #                     "), args=list(dtxsid))
 #             func_input <- unlist(func_input[1, "smi_id"])
-#             
+# 
 #         } else if(fp == "pass"){
 #             fp_func <- "pass_chemical_predictions_vector"
 #             fp_func_func <- "get_functional_cosine_cutoff_pass"
-#             
+# 
 #             func_input <- run_query(paste0("
 #                         SELECT
 #                             b.dsstox_compound_id
@@ -455,10 +455,10 @@ function(res, req, smiles="", fp="morgan", threshold=0.5, n=10, exact=TRUE) {
 #                         AND a.epa_id = b.epa_id
 #                     "), args=list(dtxsid))
 #             func_input <- unlist(func_input[1, "dsstox_compound_id"])
-#             
-#         } 
-#         
-#         
+# 
+#         }
+# 
+# 
 # 
 #         sim <- data.frame()
 # 
@@ -494,7 +494,7 @@ function(res, req, smiles="", fp="morgan", threshold=0.5, n=10, exact=TRUE) {
 #             ORDER BY a.functional_similarity
 #             LIMIT $3
 #         ")
-#         
+# 
 #         sim <- run_query(sim, args=list(threshold, func_input, n))
 # 
 # 
@@ -614,47 +614,46 @@ function(res, req, dtxsid="") {
     # Get internal IDs for given chemical
     prop <- run_query(paste0("
         SELECT DISTINCT
-            gbcr.boiling_temp,
-            gbcr.henrys_law,
-            gbcr.hydrogen_bond_acceptors,
-            gbcr.hydrogen_bond_donors,
-            gbcr.mass,
-            gbcr.melting_temp,
-            gbcr.vapor_pressure,
-            gbcr.water_solubility,
-            gbcr.log_kow,
-            gbcr.role
+            bach.dsstox_substance_id,
+            bcco.dsstox_compound_id,
+            bcco.preferred_name,
+            geca.genra_catagory,
+            geca.genra_catagory_name,
+            bcgr.genra_result
         FROM
-            base_chemicals bc,
-            base_chemical_compounds bcc,
-            zz_genra_base_chemical_information gbcr
+            base_chemicals bach,
+            base_chemical_compounds bcco,
+            base_chemical_genra_results bcgr,
+            genra_catagories geca
         WHERE
-            bc.dsstox_substance_id = $1
-        AND bc.epa_id = bcc.epa_id
-        AND bcc.dsstox_compound_id = gbcr.dsstox_compound_id
+            bcco.epa_id = bach.epa_id
+        AND bcgr.epa_id = bach.epa_id
+        AND bcgr.cmpd_id = bcco.cmpd_id
+        AND bcgr.gcat_id = geca.gcat_id
+        AND bach.dsstox_substance_id = $1
     "), args=as.list(dtxsid))
 }
 
-#* Given a DSSTox substance ID, return chemical test results from GenRA. NOTE: This endpoint is still in development and responses may not be correct.
-#* @param dtxsid DSSTox substance ID
-#* @get /genra/tests
-#* @tag "Chemical Properties"
-function(res, req, dtxsid="") {
-    # Get internal IDs for given chemical
-    prop <- run_query(paste0("
-        SELECT DISTINCT
-            gbcr.testing_definition,
-            gbcr.testing_result
-        FROM
-            base_chemicals bc,
-            base_chemical_compounds bcc,
-            zz_genra_base_chemical_results gbcr
-        WHERE
-            bc.dsstox_substance_id = $1
-        AND bc.epa_id = bcc.epa_id
-        AND bcc.dsstox_compound_id = gbcr.dsstox_compound_id
-    "), args=as.list(dtxsid))
-}
+# #* Given a DSSTox substance ID, return chemical test results from GenRA. NOTE: This endpoint is still in development and responses may not be correct.
+# #* @param dtxsid DSSTox substance ID
+# #* @get /genra/tests
+# #* @tag "Chemical Properties"
+# function(res, req, dtxsid="") {
+#     # Get internal IDs for given chemical
+#     prop <- run_query(paste0("
+#         SELECT DISTINCT
+#             gbcr.testing_definition,
+#             gbcr.testing_result
+#         FROM
+#             base_chemicals bc,
+#             base_chemical_compounds bcc,
+#             zz_genra_base_chemical_results gbcr
+#         WHERE
+#             bc.dsstox_substance_id = $1
+#         AND bc.epa_id = bcc.epa_id
+#         AND bcc.dsstox_compound_id = gbcr.dsstox_compound_id
+#     "), args=as.list(dtxsid))
+# }
 
 
 #* Given a DSSTox substance ID, annotate using the Chemical and Products Database (CPDat) available in CBT. Contains information about a chemical's usage in commercially-available products.
