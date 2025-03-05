@@ -1129,6 +1129,38 @@ function(res, req, dtxsid = "") {
     }
 }
 
+
+#* Given a DSSTox substance ID, annotate using the Comparative Toxicogenomics Database (CTD) available in CBT. Contains annotations related to a chemical's biological processes. Reduced data version for LLM use.
+#* @param dtxsid DSSTox substance ID
+#* @get /ctd/bp/llm
+#* @tag "Biological Process Annotations"
+function(res, req, dtxsid = "") {
+    # Get internal IDs for given chemical
+    internal_id <- run_query(paste0("
+        SELECT DISTINCT
+            bc.epa_id,
+            bc.dsstox_substance_id
+        FROM
+            base_chemicals bc
+        WHERE
+            bc.dsstox_substance_id = $1
+    "), args=as.list(dtxsid))
+    
+    if(nrow(internal_id) > 0){
+        
+        input_all_annotations <- list(
+            "switch__ctd_bioprocess"
+        )
+        annotations <- as.list(chemical_annotations(selected=as.integer(internal_id$epa_id), input=input_all_annotations, selected_node=1, dtxsids=internal_id$dsstox_substance_id, switch_mode=""))[c("anno_ctd_bioprocess")]
+        annotations <- annotations$anno_ctd_bioprocess
+        
+        print(annotations)
+        print(nrow(annotations))
+        print(nrow(annotations[annotations$corrected_pvalue > 0,]))
+    }
+}
+
+
 #* Given a DSSTox substance ID, annotate using the Comparative Toxicogenomics Database (CTD) available in CBT. Contains annotations related to a chemical's cellular components.
 #* @param dtxsid DSSTox substance ID
 #* @get /ctd/cc
@@ -1203,6 +1235,37 @@ function(res, req, dtxsid = "") {
         )
         annotations <- as.list(chemical_annotations(selected=as.integer(internal_id$epa_id), input=input_all_annotations, selected_node=1, dtxsids=internal_id$dsstox_substance_id, switch_mode=""))[c("anno_ctd_genes")]
     }
+}
+
+
+
+#* Given a DSSTox substance ID, annotate using the Comparative Toxicogenomics Database (CTD) available in CBT. Contains annotations related to a chemical's associated genes. Reduced data version designed for use with LLM processing.
+#* @param dtxsid DSSTox substance ID
+#* @get /ctd/genes/llm
+#* @tag "Gene Annotations"
+function(res, req, dtxsid = "") {
+    # Get internal IDs for given chemical
+    internal_id <- run_query(paste0("
+        SELECT DISTINCT
+            bc.epa_id,
+            bc.dsstox_substance_id
+        FROM
+            base_chemicals bc
+        WHERE
+            bc.dsstox_substance_id = $1
+    "), args=as.list(dtxsid))
+    
+    if(nrow(internal_id) > 0){
+        
+        input_all_annotations <- list(
+            "switch__ctd_genes"
+        )
+        annotations <- as.list(chemical_annotations(selected=as.integer(internal_id$epa_id), input=input_all_annotations, selected_node=1, dtxsids=internal_id$dsstox_substance_id, switch_mode=""))[c("anno_ctd_genes")]
+        
+        annotations <- annotations$anno_ctd_genes$gene_symbol
+    }
+    
+    return(annotations)
 }
 
 
@@ -1726,6 +1789,45 @@ function(res, req, dtxsid = "") {
         return(annotations)
     }
 }
+
+
+# #* Given a DSSTox substance ID, annotate using the DrugBank database available in CBT. Contains information about a chemical's associated targets. Reduced data version desiged for use with LLM processing.
+# #* @param dtxsid DSSTox substance ID
+# #* @get /drugbank/targets/llm
+# #* @tag "Drug Annotations"
+# #* @tag "Biological Process Annotations"
+# #* @tag "Gene Annotations"
+# function(res, req, dtxsid = "") {
+#     # Get internal IDs for given chemical
+#     internal_id <- run_query(paste0("
+#         SELECT DISTINCT
+#             bc.epa_id,
+#             bc.dsstox_substance_id
+#         FROM
+#             base_chemicals bc
+#         WHERE
+#             bc.dsstox_substance_id = $1
+#     "), args=as.list(dtxsid))
+#     
+#     if(nrow(internal_id) > 0){
+#         input_all_annotations <- list(
+#             "switch__drugbank_targets"
+#         )
+#         annotations <- chemical_annotations(selected=as.integer(internal_id$epa_id), input=input_all_annotations, selected_node=1, dtxsids=internal_id$dsstox_substance_id, switch_mode="")[c("anno_drugbank_targets")]
+#         print(annotations)
+#         # annotations <- annotations$anno_ctd_genes
+#         # 
+#         # annotations <- split(annotations, annotations$interaction_actions)
+#         # annotations <- lapply(annotations, function(x){
+#         #     paste0(unique(x[, c("gene_symbol")]), collapse=", ")
+#         # })
+#         # annotations <- data.frame(interaction=names(annotations), genes=unname(unlist(annotations)))
+#         
+#     }
+#     return(annotations)
+# }
+
+
 
 #* Given a DSSTox substance ID, annotate using the DrugBank database available in CBT. Contains information about a chemical's associated transporters.
 #* @param dtxsid DSSTox substance ID
