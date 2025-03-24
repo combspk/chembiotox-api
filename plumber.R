@@ -1981,6 +1981,7 @@ function(res, req, dtxsid = "") {
 #* @param dtxsid DSSTox substance ID
 #* @get /pubchem/properties
 #* @tag "Chemical Properties"
+#* @tag "PubChem"
 function(res, req, dtxsid = "") {
     props <- run_query(paste0("
         SELECT DISTINCT
@@ -1997,6 +1998,136 @@ function(res, req, dtxsid = "") {
     "), args=as.list(dtxsid))
     return(props)
 }
+
+#* Given a DSSTox substance ID, annotate with synonyms from PubChem.
+#* @param dtxsid DSSTox substance ID
+#* @get /pubchem/properties/synonyms
+#* @tag "PubChem"
+function(res, req, dtxsid = "") {
+    props <- run_query(paste0("
+        SELECT DISTINCT
+            pa.pubchem_attribute,
+            pa.pubchem_value
+        FROM
+            base_chemicals bc,
+            base_chemical_to_pubchem_cid bpc,
+            pubchem_attributes pa
+        WHERE
+            bc.dsstox_substance_id = $1
+        AND bc.epa_id = bpc.epa_id
+        AND bpc.pubchem_cid = pa.cid
+    "), args=as.list(dtxsid))
+    
+    if(nrow(props) > 0){
+        props <- props[props$pubchem_attribute == "cmpdsynonym", "pubchem_value"]
+        props <- unlist(str_split(props, "\\|"))
+    }
+    return(props)
+}
+
+#* Given a DSSTox substance ID, annotate with its mass from PubChem.
+#* @param dtxsid DSSTox substance ID
+#* @get /pubchem/properties/mass
+#* @tag "PubChem"
+function(res, req, dtxsid = "") {
+    props <- run_query(paste0("
+        SELECT DISTINCT
+            pa.pubchem_attribute,
+            pa.pubchem_value
+        FROM
+            base_chemicals bc,
+            base_chemical_to_pubchem_cid bpc,
+            pubchem_attributes pa
+        WHERE
+            bc.dsstox_substance_id = $1
+        AND bc.epa_id = bpc.epa_id
+        AND bpc.pubchem_cid = pa.cid
+    "), args=as.list(dtxsid))
+    
+    if(nrow(props) > 0){
+        props <- props[props$pubchem_attribute == "exactmass", "pubchem_value"]
+        props <- paste0(props, " Da")
+    }
+    return(props)
+}
+
+#* Given a DSSTox substance ID, annotate with its molecular formula from PubChem.
+#* @param dtxsid DSSTox substance ID
+#* @get /pubchem/properties/formula
+#* @tag "PubChem"
+function(res, req, dtxsid = "") {
+    props <- run_query(paste0("
+        SELECT DISTINCT
+            pa.pubchem_attribute,
+            pa.pubchem_value
+        FROM
+            base_chemicals bc,
+            base_chemical_to_pubchem_cid bpc,
+            pubchem_attributes pa
+        WHERE
+            bc.dsstox_substance_id = $1
+        AND bc.epa_id = bpc.epa_id
+        AND bpc.pubchem_cid = pa.cid
+    "), args=as.list(dtxsid))
+    
+    if(nrow(props) > 0){
+        props <- props[props$pubchem_attribute == "mf", "pubchem_value"]
+    }
+    return(props)
+}
+
+#* Given a DSSTox substance ID, annotate with its molecular weight from PubChem.
+#* @param dtxsid DSSTox substance ID
+#* @get /pubchem/properties/weight
+#* @tag "PubChem"
+function(res, req, dtxsid = "") {
+    props <- run_query(paste0("
+        SELECT DISTINCT
+            pa.pubchem_attribute,
+            pa.pubchem_value
+        FROM
+            base_chemicals bc,
+            base_chemical_to_pubchem_cid bpc,
+            pubchem_attributes pa
+        WHERE
+            bc.dsstox_substance_id = $1
+        AND bc.epa_id = bpc.epa_id
+        AND bpc.pubchem_cid = pa.cid
+    "), args=as.list(dtxsid))
+    
+    if(nrow(props) > 0){
+        props <- props[props$pubchem_attribute == "mw", "pubchem_value"]
+        props <- paste0(props, " g/mol")
+    }
+    return(props)
+}
+
+#* Given a DSSTox substance ID, annotate with its XLogP from PubChem.
+#* @param dtxsid DSSTox substance ID
+#* @get /pubchem/properties/xlogp
+#* @tag "PubChem"
+function(res, req, dtxsid = "") {
+    props <- run_query(paste0("
+        SELECT DISTINCT
+            pa.pubchem_attribute,
+            pa.pubchem_value
+        FROM
+            base_chemicals bc,
+            base_chemical_to_pubchem_cid bpc,
+            pubchem_attributes pa
+        WHERE
+            bc.dsstox_substance_id = $1
+        AND bc.epa_id = bpc.epa_id
+        AND bpc.pubchem_cid = pa.cid
+    "), args=as.list(dtxsid))
+    
+    if(nrow(props) > 0){
+        props <- props[props$pubchem_attribute == "xlogp", "pubchem_value"]
+    }
+    return(props)
+}
+
+
 
 #* Given a DSSTox substance ID, annotate with chemical properties as detailed in the EPA CompTox Chemicals Dashboard that are available in CBT.
 #* @param dtxsid DSSTox substance ID
