@@ -274,7 +274,7 @@ function(res, req, name = "") {
 }
 
 #* Given a CASRN, return the DSSTox substance ID.
-#* @param name chemical name
+#* @param casrn chemical name
 #* @get /casrn2dtxsid
 #* @tag "Identifier Lookup"
 function(res, req, casrn = "") {
@@ -289,6 +289,25 @@ function(res, req, casrn = "") {
             bcc.casrn = $1
             AND bc.epa_id = bcc.epa_id
     "), args=as.list(casrn))
+}
+
+#* Given a chemical name, return the DSSTox substance ID. Takes into account synonyms when mapping.
+#* @param name chemical name
+#* @get /synonym2dtxsid
+#* @tag "Identifier Lookup"
+function(res, req, name = "") {
+    # Get internal IDs for given chemical
+    internal_id <- run_query(paste0("
+        SELECT DISTINCT
+            bc.dsstox_substance_id
+        FROM
+            base_chemicals bc,
+            base_chemical_to_pubchem_synonyms bpcs
+        WHERE
+            UPPER(bpcs.synonym) = UPPER($1)
+        AND bc.epa_id = bpcs.epa_id
+        
+    "), args=as.list(name))
 }
 
 #* Given a SMILES string, return the DSSTox substance ID. If the given SMILES is not in the database, will return the closest match using rdkit fingerprint-based structural similarity.
@@ -1006,13 +1025,12 @@ function(res, req, dtxsid = "") {
     }
 }
 
-
 #* Given a DSSTox substance ID, find studies and points of departure for the corresponding chemical in ToxRefDB data available in CBT.
 #* @param dtxsid DSSTox substance ID
 #* @get /toxrefdb/studies
 #* @tag "TODO"
 function(res, req, dtxsid = "") {
-
+    
     ep <- run_query(paste0("
         SELECT DISTINCT
             tdbp.pod_type,
@@ -1044,7 +1062,9 @@ function(res, req, dtxsid = "") {
             tdbe.cancer_related,
             tdbep.endpoint_category,
             tdbep.endpoint_type,
-            tdbep.endpoint_target
+            tdbep.endpoint_target,
+            tdbo.tested_status,
+            tdbo.reported_status
         FROM
             base_chemicals bc,
             toxrefdb_chemical tdbc,
@@ -1053,7 +1073,8 @@ function(res, req, dtxsid = "") {
             toxrefdb_tg_effect tdbte,
             toxrefdb_effect tdbe,
             toxrefdb_endpoint tdbep,
-            toxrefdb_pod tdbp
+            toxrefdb_pod tdbp,
+            toxrefdb_obs tdbo
         WHERE
             bc.dsstox_substance_id = $1
         AND bc.dsstox_substance_id = tdbc.dsstox_substance_id
@@ -1066,6 +1087,54 @@ function(res, req, dtxsid = "") {
         AND tdbt.tg_id = tdbte.tg_id
         AND tdbte.effect_id = tdbe.effect_id
         AND tdbe.endpoint_id = tdbep.endpoint_id
+        
+        AND tdbo.study_id = tdbt.study_id
+        AND tdbo.endpoint_id = tdbe.endpoint_id
+        AND tdbo.tested_status = true
+        AND tdbo.reported_status = true
+
+    "), args=as.list(dtxsid))
+    return(ep)
+}
+
+#* Given a DSSTox substance ID, find studies and points of departure for the corresponding chemical in ToxRefDB data available in CBT.
+#* @param dtxsid DSSTox substance ID
+#* @get /toxrefdb/studies/llm
+#* @tag "TODO"
+function(res, req, dtxsid = "") {
+
+    ep <- run_query(paste0("
+        SELECT DISTINCT
+            tdbs.study_citation,
+            tdbe.effect_desc,
+            tdbep.endpoint_target
+        FROM
+            base_chemicals bc,
+            toxrefdb_chemical tdbc,
+            toxrefdb_study tdbs,
+            toxrefdb_tg tdbt,
+            toxrefdb_tg_effect tdbte,
+            toxrefdb_effect tdbe,
+            toxrefdb_endpoint tdbep,
+            toxrefdb_pod tdbp,
+            toxrefdb_obs tdbo
+        WHERE
+            bc.dsstox_substance_id = $1
+        AND bc.dsstox_substance_id = tdbc.dsstox_substance_id
+        AND tdbc.chemical_id = tdbs.chemical_id
+
+        AND tdbc.chemical_id = tdbp.chemical_id
+        AND tdbp.study_id = tdbt.study_id
+
+        AND tdbs.study_id = tdbt.study_id
+        AND tdbt.tg_id = tdbte.tg_id
+        AND tdbte.effect_id = tdbe.effect_id
+        AND tdbe.endpoint_id = tdbep.endpoint_id
+        
+        AND tdbo.study_id = tdbt.study_id
+        AND tdbo.endpoint_id = tdbe.endpoint_id
+        AND tdbo.tested_status = true
+        AND tdbo.reported_status = true
 
     "), args=as.list(dtxsid))
     return(ep)
@@ -2006,22 +2075,15 @@ function(res, req, dtxsid = "") {
 function(res, req, dtxsid = "") {
     props <- run_query(paste0("
         SELECT DISTINCT
-            pa.pubchem_attribute,
-            pa.pubchem_value
+            bpcs.synonym
         FROM
             base_chemicals bc,
-            base_chemical_to_pubchem_cid bpc,
-            pubchem_attributes pa
+            base_chemical_to_pubchem_synonyms bpcs
         WHERE
             bc.dsstox_substance_id = $1
-        AND bc.epa_id = bpc.epa_id
-        AND bpc.pubchem_cid = pa.cid
+        AND bc.epa_id = bpcs.epa_id
     "), args=as.list(dtxsid))
     
-    if(nrow(props) > 0){
-        props <- props[props$pubchem_attribute == "cmpdsynonym", "pubchem_value"]
-        props <- unlist(str_split(props, "\\|"))
-    }
     return(props)
 }
 
