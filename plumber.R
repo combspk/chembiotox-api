@@ -2084,6 +2084,9 @@ function(res, req, dtxsid = "") {
         AND bc.epa_id = bpcs.epa_id
     "), args=as.list(dtxsid))
     
+    if(nrow(props) > 0){
+        props <- props$synonym
+    }
     return(props)
 }
 
