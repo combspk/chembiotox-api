@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 #
 # This is a Plumber API. You can run the API by clicking
 # the 'Run API' button above.
@@ -2388,33 +2387,73 @@ function(res, req, dtxsid = "") {
 
 
 
+query_mesh <- function(q="", n=10, exact=FALSE){
+    res <- tryCatch({
+        match <- "contains"
+        if(exact == TRUE) match="exact" 
+        
+        body_content <- list(
+            label=q,
+            match=match,
+            year="current",
+            limit=n
+        )
+        res <- httr::POST(url="https://id.nlm.nih.gov/mesh/lookup/descriptor", body=body_content, encode="json")
+        json <- fromJSON(httr::content(res, "text"))
+        return(json)
+        
+    }, error=function(cond){
+        print(cond)
+        return(NULL)
+    })
+}
+
+
 
 #* Given a disease name, check for associated chemicals
 #* @param name disease name
-#* @param n num of chemicals to return
+#* @param n num of disease name matches to return
 #* @param exact match exact name?
+#* @param n_chem number of chemicals per disease name to return
 #* @get /ctd/diseases/chemicals
 #* @tag "Disease Annotations"
-function(res, req, name = "", n=20, exact=FALSE) {
+function(res, req, name = "", n=10, exact=FALSE, n_chem=10) {
+    
+    # Get MeSH IDs for input disease
+    mesh_ids <- query_mesh(q=name, n=n, exact=as.booltype(exact))
+    mesh_ids$mesh_id <- unlist(lapply(mesh_ids$resource, function(x){
+        tmp <- unlist(str_split(x, "/"))
+        return(
+            paste0("MESH:", tmp[length(tmp)])
+        )
+    }))
+    
+    if(length(mesh_ids) < 1){
+        return(data.frame())
+    }
+    
     disease2chemical <- run_query(paste0("
     SELECT DISTINCT
         bcc.preferred_name,
         ccd.disease_name,
+        ccd.direct_evidence,
         ccd.inference_score
     FROM
         ctd_chemicals_to_diseases ccd,
         ctd_to_base_chemicals cbc,
         base_chemical_compounds bcc
     WHERE 
-    ", if(as.booltype(exact) == FALSE) paste0("UPPER(ccd.disease_name) LIKE UPPER(CONCAT('%', $1::text, '%'))") else paste0("UPPER(ccd.disease_name) = UPPER($1::text)"), "
+        ccd.disease_id IN (", paste0(lapply(seq_len(length(mesh_ids$mesh_id)), function(x) paste0("$", x)), collapse=", "), ")
     AND ccd.ctd_id = cbc.ctd_id
     AND cbc.epa_id = bcc.epa_id
-    AND ccd.inference_score IS NOT NULL
-    ORDER BY ccd.inference_score DESC
-    LIMIT $2
-    "), args=list(name, n))
-    
+    ORDER BY ccd.direct_evidence ASC, ccd.inference_score DESC
+    "), args=as.list(mesh_ids$mesh_id))
+
     disease2chemical <- split(disease2chemical, disease2chemical$disease_name)
+    
+    disease2chemical <- lapply(disease2chemical, function(x) {
+        x[seq_len(n_chem), ]
+    })
     
     return(disease2chemical)
 }
@@ -2522,7 +2561,7 @@ function(res, req, name = "", n=20, exact=FALSE) {
     
     return(gene2chemical)
 }
-=======
+
 #
 # This is a Plumber API. You can run the API by clicking
 # the 'Run API' button above.
@@ -4888,4 +4927,3 @@ function(res, req, dtxsid = "") {
     "), args=as.list(dtxsid))
     return(sfund)
 }
->>>>>>> 8f3e927a0c6da5e5b9ee3ac1a72f1e1b8eb79e0a
