@@ -2482,15 +2482,15 @@ function(res, req, name = "", n=20, exact=FALSE) {
     LIMIT $2
     "), args=list(name, n))
     
-    gene2chemical$interaction <- apply(gene2chemical, 1, function(x){
-        if(grepl("results in increased expression", x["interaction"])){
-            return(paste0("increases expression of ", x["gene_symbol"]))
-        } else if(grepl("results in decreased expression", x["interaction"])){
-            return(paste0("decreases expression of ", x["gene_symbol"]))
-        } else {
-            return(paste0("affects expression of ", x["gene_symbol"]))
-        }
-    })
+    # gene2chemical$interaction <- apply(gene2chemical, 1, function(x){
+    #     if(grepl("results in increased expression", x["interaction"])){
+    #         return(paste0("increases expression of ", x["gene_symbol"]))
+    #     } else if(grepl("results in decreased expression", x["interaction"])){
+    #         return(paste0("decreases expression of ", x["gene_symbol"]))
+    #     } else {
+    #         return(paste0("affects expression of ", x["gene_symbol"]))
+    #     }
+    # })
     
     gene2chemical <- split(gene2chemical, gene2chemical$gene_symbol)
     
