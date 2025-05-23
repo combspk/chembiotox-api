@@ -1238,76 +1238,28 @@ function(res, req, dtxsid = "", pages=1) {
     }
 }
 
-
-
-#* Given a DSSTox substance ID, annotate using the Human Metabolome Database (HMDB) available in CBT. Contains annotations related to a chemical's biospecimen locations, cellular locations, tissue locations, genes, and diseases.
-#* @param dtxsid DSSTox substance ID
-#* @get /hmdb
-#* @tag "Gene Annotations"
-#* @tag "Disease Annotations"
-#* @tag "Biological Process Annotations"
-function(res, req, dtxsid = "", pages=1) {
-    # Get internal IDs for given chemical
-    internal_id <- run_query(paste0("
-        SELECT DISTINCT
-            bc.epa_id,
-            bc.dsstox_substance_id
-        FROM
-            base_chemicals bc
-        WHERE
-            bc.dsstox_substance_id = $1
-    "), args=as.list(dtxsid))
-    
-    if(nrow(internal_id) > 0){
-        
-        input_all_annotations <- list(
-            "switch__hmdb_biospecimenlocations",
-            "switch__hmdb_cellularlocations",
-            "switch__hmdb_diseases",
-            "switch__hmdb_genes",
-            "switch__hmdb_tissuelocations"
-        )
-        annotations <- as.list(chemical_annotations(selected=as.integer(internal_id$epa_id), input=input_all_annotations, selected_node=1, dtxsids=internal_id$dsstox_substance_id, switch_mode=""))[c("anno_hmdb_biospecimenlocations", "anno_hmdb_cellularlocations", "anno_hmdb_diseases", "anno_hmdb_genes", "anno_hmdb_tissuelocations")]
-        annotations <- lapply(annotations, function(x){
-            if(nrow(x) > as.numeric(pages)*10){
-                x <- x[seq_len(as.numeric(pages)*10), ]
-            }
-            return(x)
-        })
-        return(annotations)
-    }
-}
-
-
 #* Given a DSSTox substance ID, annotate using the Human Metabolome Database (HMDB) available in CBT. Contains annotations related to a chemical's biospecimen locations.
 #* @param dtxsid DSSTox substance ID
 #* @get /hmdb/locations/biospecimen
 #* @tag "Biological Process Annotations"
 #* @tag "Environmental Fate and Exposure Annotations"
 function(res, req, dtxsid = "", pages=1) {
-    # Get internal IDs for given chemical
-    internal_id <- run_query(paste0("
+    hmdb_results <- run_query_hmdb(paste0("
         SELECT DISTINCT
-            bc.epa_id,
-            bc.dsstox_substance_id
+            eb.dsstox_substance_id,
+            hbl.id_value AS location
         FROM
-            base_chemicals bc
+            epa_base eb,
+            hmdb_to_dsstox hd,
+            hmdb_biological_locations hbl
         WHERE
-            bc.dsstox_substance_id = $1
-    "), args=as.list(dtxsid))
-    
-    if(nrow(internal_id) > 0){
-        
-        input_all_annotations <- list(
-            "switch__hmdb_biospecimenlocations"
-        )
-        annotations <- as.list(chemical_annotations(selected=as.integer(internal_id$epa_id), input=input_all_annotations, selected_node=1, dtxsids=internal_id$dsstox_substance_id, switch_mode=""))[[c("anno_hmdb_biospecimenlocations")]]
-        if(nrow(annotations) > as.numeric(pages)*10){
-            annotations <- annotations[seq_len(as.numeric(pages)*10), ]
-        }
-        return(annotations)
-        
-    }
+            eb.dsstox_substance_id = $1
+        AND eb.epa_id = hd.epa_id
+        AND hd.hmdb_id = hbl.hmdb_id
+        AND hbl.id_type = 'biospecimen_locations'
+        LIMIT $2
+    "), args=list(dtxsid, as.numeric(pages)*10))
+    return(hmdb_results)
 }
 
 
@@ -1317,89 +1269,22 @@ function(res, req, dtxsid = "", pages=1) {
 #* @tag "Biological Process Annotations"
 #* @tag "Environmental Fate and Exposure Annotations"
 function(res, req, dtxsid = "", pages=1) {
-    # Get internal IDs for given chemical
-    internal_id <- run_query(paste0("
+    hmdb_results <- run_query_hmdb(paste0("
         SELECT DISTINCT
-            bc.epa_id,
-            bc.dsstox_substance_id
+            eb.dsstox_substance_id,
+            hbl.id_value AS location
         FROM
-            base_chemicals bc
+            epa_base eb,
+            hmdb_to_dsstox hd,
+            hmdb_biological_locations hbl
         WHERE
-            bc.dsstox_substance_id = $1
-    "), args=as.list(dtxsid))
-    
-    if(nrow(internal_id) > 0){
-        
-        input_all_annotations <- list(
-            "switch__hmdb_cellularlocations"
-        )
-        annotations <- as.list(chemical_annotations(selected=as.integer(internal_id$epa_id), input=input_all_annotations, selected_node=1, dtxsids=internal_id$dsstox_substance_id, switch_mode=""))[[c("anno_hmdb_cellularlocations")]]
-        if(nrow(annotations) > as.numeric(pages)*10){
-            annotations <- annotations[seq_len(as.numeric(pages)*10), ]
-        }
-        return(annotations)
-        
-    }
-}
-
-#* Given a DSSTox substance ID, annotate using the Human Metabolome Database (HMDB) available in CBT. Contains annotations related to a chemical's associated diseases.
-#* @param dtxsid DSSTox substance ID
-#* @get /hmdb/diseases
-#* @tag "Disease Annotations"
-function(res, req, dtxsid = "", pages=1) {
-    # Get internal IDs for given chemical
-    internal_id <- run_query(paste0("
-        SELECT DISTINCT
-            bc.epa_id,
-            bc.dsstox_substance_id
-        FROM
-            base_chemicals bc
-        WHERE
-            bc.dsstox_substance_id = $1
-    "), args=as.list(dtxsid))
-    
-    if(nrow(internal_id) > 0){
-        
-        input_all_annotations <- list(
-            "switch__hmdb_diseases"
-        )
-        annotations <- as.list(chemical_annotations(selected=as.integer(internal_id$epa_id), input=input_all_annotations, selected_node=1, dtxsids=internal_id$dsstox_substance_id, switch_mode=""))[[c("anno_hmdb_diseases")]]
-        if(nrow(annotations) > as.numeric(pages)*10){
-            annotations <- annotations[seq_len(as.numeric(pages)*10), ]
-        }
-        return(annotations)
-        
-    }
-}
-
-#* Given a DSSTox substance ID, annotate using the Human Metabolome Database (HMDB) available in CBT. Contains annotations related to a chemical's associated genes.
-#* @param dtxsid DSSTox substance ID
-#* @get /hmdb/genes
-#* @tag "Gene Annotations"
-function(res, req, dtxsid = "", pages=1) {
-    # Get internal IDs for given chemical
-    internal_id <- run_query(paste0("
-        SELECT DISTINCT
-            bc.epa_id,
-            bc.dsstox_substance_id
-        FROM
-            base_chemicals bc
-        WHERE
-            bc.dsstox_substance_id = $1
-    "), args=as.list(dtxsid))
-    
-    if(nrow(internal_id) > 0){
-        
-        input_all_annotations <- list(
-            "switch__hmdb_genes"
-        )
-        annotations <- as.list(chemical_annotations(selected=as.integer(internal_id$epa_id), input=input_all_annotations, selected_node=1, dtxsids=internal_id$dsstox_substance_id, switch_mode=""))[[c("anno_hmdb_genes")]]
-        if(nrow(annotations) > as.numeric(pages)*10){
-            annotations <- annotations[seq_len(as.numeric(pages)*10), ]
-        }
-        return(annotations)
-        
-    }
+            eb.dsstox_substance_id = $1
+        AND eb.epa_id = hd.epa_id
+        AND hd.hmdb_id = hbl.hmdb_id
+        AND hbl.id_type = 'cellular_locations'
+        LIMIT $2
+    "), args=list(dtxsid, as.numeric(pages)*10))
+    return(hmdb_results)
 }
 
 #* Given a DSSTox substance ID, annotate using the Human Metabolome Database (HMDB) available in CBT. Contains annotations related to a chemical's tissue locations.
@@ -1408,29 +1293,91 @@ function(res, req, dtxsid = "", pages=1) {
 #* @tag "Biological Process Annotations"
 #* @tag "Environmental Fate and Exposure Annotations"
 function(res, req, dtxsid = "", pages=1) {
-    # Get internal IDs for given chemical
-    internal_id <- run_query(paste0("
+    hmdb_results <- run_query_hmdb(paste0("
         SELECT DISTINCT
-            bc.epa_id,
-            bc.dsstox_substance_id
+            eb.dsstox_substance_id,
+            hbl.id_value AS location
         FROM
-            base_chemicals bc
+            epa_base eb,
+            hmdb_to_dsstox hd,
+            hmdb_biological_locations hbl
         WHERE
-            bc.dsstox_substance_id = $1
-    "), args=as.list(dtxsid))
-    
-    if(nrow(internal_id) > 0){
-        
-        input_all_annotations <- list(
-            "switch__hmdb_tissuelocations"
-        )
-        annotations <- as.list(chemical_annotations(selected=as.integer(internal_id$epa_id), input=input_all_annotations, selected_node=1, dtxsids=internal_id$dsstox_substance_id, switch_mode=""))[[c("anno_hmdb_tissuelocations")]]
-        if(nrow(annotations) > as.numeric(pages)*10){
-            annotations <- annotations[seq_len(as.numeric(pages)*10), ]
-        }
-        return(annotations)
-        
-    }
+            eb.dsstox_substance_id = $1
+        AND eb.epa_id = hd.epa_id
+        AND hd.hmdb_id = hbl.hmdb_id
+        AND hbl.id_type = 'tissue_locations'
+        LIMIT $2
+    "), args=list(dtxsid, as.numeric(pages)*10))
+    return(hmdb_results)
+}
+
+#* Given a DSSTox substance ID, annotate using the Human Metabolome Database (HMDB) available in CBT. Contains annotations related to a chemical's associated diseases.
+#* @param dtxsid DSSTox substance ID
+#* @get /hmdb/diseases
+#* @tag "Disease Annotations"
+function(res, req, dtxsid = "", pages=1) {
+    hmdb_results <- run_query_hmdb(paste0("
+        SELECT DISTINCT
+            eb.dsstox_substance_id,
+            hbd.id_value AS disease_name
+        FROM
+            epa_base eb,
+            hmdb_to_dsstox hd,
+            hmdb_diseases hbd
+        WHERE
+            eb.dsstox_substance_id = $1
+        AND eb.epa_id = hd.epa_id
+        AND hd.hmdb_id = hbd.hmdb_id
+        AND hbd.id_type = 'disease_name'
+        LIMIT $2
+    "), args=list(dtxsid, as.numeric(pages)*10))
+    return(hmdb_results)
+}
+
+#* Given a DSSTox substance ID, annotate using the Human Metabolome Database (HMDB) available in CBT. Contains annotations related to a chemical's associated genes.
+#* @param dtxsid DSSTox substance ID
+#* @get /hmdb/genes
+#* @tag "Gene Annotations"
+function(res, req, dtxsid = "", pages=1) {
+    hmdb_results <- run_query_hmdb(paste0("
+        SELECT DISTINCT
+            eb.dsstox_substance_id,
+            hbp.id_value AS gene_name
+        FROM
+            epa_base eb,
+            hmdb_to_dsstox hd,
+            hmdb_proteins hbp
+        WHERE
+            eb.dsstox_substance_id = $1
+        AND eb.epa_id = hd.epa_id
+        AND hd.hmdb_id = hbp.hmdb_id
+        AND hbp.id_type = 'gene name'
+        LIMIT $2
+    "), args=list(dtxsid, as.numeric(pages)*10))
+    return(hmdb_results)
+}
+
+#* Given a DSSTox substance ID, annotate using the Human Metabolome Database (HMDB) available in CBT. Contains annotations related to a chemical's associated proteins.
+#* @param dtxsid DSSTox substance ID
+#* @get /hmdb/proteins
+#* @tag "Gene Annotations"
+function(res, req, dtxsid = "", pages=1) {
+    hmdb_results <- run_query_hmdb(paste0("
+        SELECT DISTINCT
+            eb.dsstox_substance_id,
+            hbp.id_value AS protein_name
+        FROM
+            epa_base eb,
+            hmdb_to_dsstox hd,
+            hmdb_proteins hbp
+        WHERE
+            eb.dsstox_substance_id = $1
+        AND eb.epa_id = hd.epa_id
+        AND hd.hmdb_id = hbp.hmdb_id
+        AND hbp.id_type = 'protein name'
+        LIMIT $2
+    "), args=list(dtxsid, as.numeric(pages)*10))
+    return(hmdb_results)
 }
 
 
