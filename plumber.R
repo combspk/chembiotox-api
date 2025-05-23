@@ -2293,3 +2293,68 @@ function(res, req, name = "", n=20, exact=FALSE) {
     
     return(gene2chemical)
 }
+
+#* Given a gene name, check for associated chemicals
+#* @param name gene name
+#* @param n num of chemicals to return
+#* @param exact match exact name?
+#* @get /drugbank/genes/chemicals
+#* @tag "Gene Annotations"
+function(res, req, name = "", n=20, exact=FALSE) {
+    gene2chemical <- run_query(paste0("
+    SELECT DISTINCT
+        bcc.preferred_name,
+        dcg.genename AS gene_symbol,
+        dcg.specific_function AS interaction
+    FROM
+        drugbank_chemicals_to_genes dcg,
+        drugbank_to_base_chemicals dbc,
+        drugbank_curated_chemicals dcc,
+        base_chemical_compounds bcc
+    WHERE 
+    ", if(as.booltype(exact) == FALSE) paste0("UPPER(dcg.genename) LIKE UPPER(CONCAT('%', $1::text, '%'))") else paste0("UPPER(dcg.genename) = UPPER($1::text)"), "
+    AND dbc.drugbank_id = dcc.drugbank_id
+    AND dcc.db_id = dcg.db_id
+    AND dbc.epa_id = bcc.epa_id
+    LIMIT $2
+    "), args=list(name, n))
+    
+    gene2chemical <- split(gene2chemical, gene2chemical$gene_symbol)
+    
+    gene2chemical <- lapply(gene2chemical, function(x){
+        split(x, x$interaction)
+    })
+    
+    return(gene2chemical)
+}
+
+
+#* Given a DTXSID, check for associated genes
+#* @param dtxsid Chemical DSSTox Substance ID
+#* @get /drugbank/genes
+#* @tag "Gene Annotations"
+function(res, req, dtxsid = "", pages=1) {
+    chemical2gene <- run_query(paste0("
+    SELECT DISTINCT
+        bc.dsstox_substance_id,
+        bcc.preferred_name,
+        dcg.genename AS gene_symbol,
+        dcg.specific_function AS interaction
+    FROM
+        drugbank_chemicals_to_genes dcg,
+        drugbank_to_base_chemicals dbc,
+        drugbank_curated_chemicals dcc,
+        base_chemical_compounds bcc,
+        base_chemicals bc
+    WHERE 
+        bc.dsstox_substance_id = $1
+    AND bc.epa_id = bcc.epa_id
+    AND dbc.drugbank_id = dcc.drugbank_id
+    AND dcc.db_id = dcg.db_id
+    AND dbc.epa_id = bcc.epa_id
+    LIMIT $2
+    "), args=list(dtxsid, as.numeric(pages)*10))
+
+    
+    return(chemical2gene)
+}
